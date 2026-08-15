@@ -34,7 +34,7 @@ def test_successful_download_marks_done_and_tags(tmp_path):
             success=True,
             file_path=f,
             file_size=f.stat().st_size,
-            info={"description": "d", "thumbnail": None},
+            info={"description": "d", "thumbnail": "https://example.com/thumb.jpg", "duration": 245},
         )
 
     def fake_tag(file_path, **kwargs):
@@ -51,10 +51,16 @@ def test_successful_download_marks_done_and_tags(tmp_path):
     assert results[0].success is True
     assert tagged_calls == [(media_dir / "chan" / "vid1.mp3", "Some Title")]
 
-    row = conn.execute("SELECT status, file_path, file_size FROM videos WHERE video_id = 'vid1'").fetchone()
+    row = conn.execute(
+        "SELECT status, file_path, file_size, description, thumbnail_url, duration_seconds "
+        "FROM videos WHERE video_id = 'vid1'"
+    ).fetchone()
     assert row["status"] == "done"
     assert row["file_path"].endswith("vid1.mp3")
     assert row["file_size"] == len(b"fake-audio-plus-id3-tags")
+    assert row["description"] == "d"
+    assert row["thumbnail_url"] == "https://example.com/thumb.jpg"
+    assert row["duration_seconds"] == 245
 
 
 def test_failed_download_marks_failed_with_error(tmp_path):

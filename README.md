@@ -7,11 +7,12 @@ Runs as a single Docker container, intended for a Raspberry Pi.
 
 ## Status
 
-Phase 2 — the full pipeline works: new uploads are detected via RSS,
-downloaded as audio-only with yt-dlp, and tagged with mutagen (title,
-channel as artist/album, date, embedded cover art, description). Feed
-generation and serving land in a later phase; everything is still manually
-triggered via HTTP endpoints until Phase 4 adds scheduling.
+Phase 3 — the pipeline is podcast-app-ready end to end: new uploads are
+detected via RSS, downloaded as audio-only with yt-dlp, tagged with mutagen,
+and served as a per-channel podcast RSS feed (iTunes namespace, enclosures,
+artwork, HEAD + Range request support for streaming/resuming). Point any
+podcast app on your LAN at `/feeds/<channel-slug>.xml`. Everything is still
+manually triggered via HTTP endpoints until Phase 4 adds scheduling.
 
 When a channel is polled for the first time, its current catalog is recorded
 as a baseline and nothing is queued for download — only videos discovered on
@@ -55,6 +56,12 @@ backfill" even across container restarts (state lives in the `/data` volume).
    Downloaded episodes land in the `podmachine_data` volume under
    `media/<channel-slug>/<video-id>.mp3`.
 
+5. Point a podcast app at the feed:
+
+   ```
+   http://<pi-ip-or-podmachine.local>:8000/feeds/<channel-slug>.xml
+   ```
+
 ## Config reference
 
 | Field | Description |
@@ -87,5 +94,8 @@ docker run --rm -v "$(pwd)":/app -w /app python:3.12-slim-bookworm \
   YouTube-side flakiness; Phase 5 adds retry/backoff for this. There's no
   retry yet — a failed download is marked `failed` in the database and
   `/process` won't touch it again automatically.
+- The iTunes category is hardcoded to "Society & Culture" (Apple's taxonomy
+  has no generic "Other") for every channel — not yet configurable per
+  channel.
 - For personal/private LAN use only — don't expose this outside your network
   or redistribute the feeds.

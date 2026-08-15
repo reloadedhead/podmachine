@@ -4,10 +4,12 @@ import logging
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, Response
 
 from podmachine.config import load_config
 from podmachine.db import connect, init_db
+from podmachine.feed import build_channel_feed
 from podmachine.poller import poll_all_channels
 from podmachine.processor import process_pending_videos
 
@@ -98,3 +100,27 @@ def process_now() -> dict:
         return {"results": [asdict(r) for r in results]}
     finally:
         conn.close()
+
+
+@app.api_route("/feeds/{channel_slug}.xml", methods=["GET", "HEAD"])
+def get_feed(channel_slug: str) -> Response:
+    config = app.state.config
+    channel = next((c for c in config.channels if c.slug == channel_slug), None)
+    if channel is None:
+        raise HTTPException(status_code=404, detail="Unknown channel")
+
+    conn = connect(app.state.db_path)
+    try:
+        xml = build_channel_feed(conn, channel, config.base_url)
+    finally:
+        conn.close()
+    return Response(content=xml, media_type="application/rss+xml")
+
+
+@app.api_route("/media/{channel_slug}/{filename}", methods=["GET", "HEAD"])
+def get_media_file(channel_slug: str, filename: str) -> FileResponse:
+    media_root = (app.state.config.data_dir / "media").resolve()
+    file_path = (media_root / channel_slug / filename).resolve()
+    if media_root not in file_path.parents or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(file_path, media_type="audio/mpeg")

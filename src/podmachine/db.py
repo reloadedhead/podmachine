@@ -32,6 +32,9 @@ VIDEO_COLUMNS = {
     "file_size": "INTEGER",
     "downloaded_at": "TEXT",
     "error_message": "TEXT",
+    "description": "TEXT",
+    "thumbnail_url": "TEXT",
+    "duration_seconds": "INTEGER",
 }
 
 

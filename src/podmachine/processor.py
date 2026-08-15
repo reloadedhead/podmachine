@@ -84,8 +84,17 @@ def _process_one(
 
     conn.execute(
         "UPDATE videos SET status = 'done', file_path = ?, file_size = ?, "
-        "downloaded_at = ?, error_message = NULL WHERE video_id = ?",
-        (str(result.file_path), file_size, utcnow_iso(), video_id),
+        "downloaded_at = ?, error_message = NULL, description = ?, "
+        "thumbnail_url = ?, duration_seconds = ? WHERE video_id = ?",
+        (
+            str(result.file_path),
+            file_size,
+            utcnow_iso(),
+            info.get("description") or None,
+            info.get("thumbnail"),
+            info.get("duration"),
+            video_id,
+        ),
     )
     conn.commit()
     return ProcessResult(video_id, channel_slug, True)
