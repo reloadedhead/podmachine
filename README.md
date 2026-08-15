@@ -53,6 +53,9 @@ pull.
 | `channels[].id` | YouTube channel ID (`UC...`) |
 | `channels[].name` | Display name used as podcast/episode metadata |
 | `channels[].slug` | URL-safe identifier, used in feed and file paths |
+| `retention.strategy` | `none` (default) or `count`. See "Episode retention" below |
+| `retention.keep_latest` | Episodes to keep per channel when `strategy: count` |
+| `channels[].retention` | Optional per-channel override — replaces the global `retention` block entirely for that channel, not merged |
 
 ## Endpoints
 
@@ -66,6 +69,26 @@ pull.
 | `GET /feeds/<slug>.xml` | Podcast RSS feed for a channel |
 | `GET /media/<slug>/<file>` | Episode audio file |
 | `GET /artwork/<slug>.jpg` | Channel cover art |
+
+## Episode retention
+
+Off by default — downloaded episodes accumulate forever unless you opt
+in. To keep only the N most recent episodes per channel:
+
+```yaml
+retention:
+  strategy: count
+  keep_latest: 20
+```
+
+A channel can override this with its own `retention:` block (replaces
+the global one entirely, not merged). Deleting an episode removes the
+mp3 and marks it `deleted` in the database — the record itself is kept
+permanently so it's never mistaken for a new upload and redownloaded.
+`age` (delete anything older than N days) and `size` (cap total storage)
+strategies are planned but not built yet; see
+[`docs/retention.md`](docs/retention.md) for the full design of all
+three, including why deletion works the way it does.
 
 ## Development
 

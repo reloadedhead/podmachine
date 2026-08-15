@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from podmachine.config import AppConfig, ChannelConfig
+from podmachine.config import AppConfig, ChannelConfig, RetentionConfig
 from podmachine.db import connect, init_db
 from podmachine.downloader import DownloadResult
 from podmachine.scheduler import run_cycle, start_scheduler
@@ -116,6 +116,52 @@ def test_run_cycle_fetches_and_caches_channel_avatar(tmp_path):
     assert Path(row["avatar_path"]).read_bytes() == b"fake-avatar-bytes"
 
 
+def test_run_cycle_applies_configured_retention_policy(tmp_path):
+    config = AppConfig(
+        base_url="http://podmachine.local:8000",
+        data_dir=tmp_path,
+        retention=RetentionConfig(strategy="count", keep_latest=1),
+        channels=[CHANNEL],
+    )
+    db_path = tmp_path / "podmachine.sqlite3"
+    init_db(db_path)
+
+    baseline_catalog = [make_entry("old1", "2026-08-01T00:00:00+00:00")]
+    run_cycle(config, db_path, fetch_fn=lambda channel_id: baseline_catalog, avatar_url_fn=no_avatar)
+
+    updated_catalog = baseline_catalog + [make_entry("new1", "2026-08-10T00:00:00+00:00")]
+    result = run_cycle(
+        config,
+        db_path,
+        fetch_fn=lambda channel_id: updated_catalog,
+        download_fn=fake_download,
+        tag_fn=lambda *a, **kw: None,
+        avatar_url_fn=no_avatar,
+    )
+
+    # old1 was baseline (never downloaded), new1 just got downloaded.
+    # Retention (keep_latest=1) should have nothing to delete yet since
+    # only one 'done' episode exists.
+    assert result["retention_deleted"] == 0
+
+    # Now a second new episode arrives; with keep_latest=1 the older of
+    # the two 'done' episodes should be deleted this cycle.
+    second_catalog = updated_catalog + [make_entry("new2", "2026-08-11T00:00:00+00:00")]
+    result2 = run_cycle(
+        config,
+        db_path,
+        fetch_fn=lambda channel_id: second_catalog,
+        download_fn=fake_download,
+        tag_fn=lambda *a, **kw: None,
+        avatar_url_fn=no_avatar,
+    )
+
+    assert result2["retention_deleted"] == 1
+    conn = connect(db_path)
+    assert conn.execute("SELECT status FROM videos WHERE video_id = 'new1'").fetchone()["status"] == "deleted"
+    assert conn.execute("SELECT status FROM videos WHERE video_id = 'new2'").fetchone()["status"] == "done"
+
+
 def test_run_cycle_with_no_channels_returns_empty_results(tmp_path):
     config = make_config(tmp_path, [])
     db_path = tmp_path / "podmachine.sqlite3"
@@ -126,7 +172,7 @@ def test_run_cycle_with_no_channels_returns_empty_results(tmp_path):
 
     result = run_cycle(config, db_path, fetch_fn=unexpected_fetch)
 
-    assert result == {"poll_results": [], "process_results": []}
+    assert result == {"poll_results": [], "process_results": [], "retention_deleted": 0}
 
 
 def test_start_scheduler_registers_job_with_configured_interval(tmp_path):

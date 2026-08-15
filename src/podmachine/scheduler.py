@@ -14,6 +14,7 @@ from podmachine.db import connect
 from podmachine.downloader import download_audio
 from podmachine.poller import poll_all_channels
 from podmachine.processor import process_pending_videos
+from podmachine.retention import apply_retention
 from podmachine.tagger import fetch_thumbnail, tag_audio_file
 from podmachine.youtube import fetch_channel_avatar_url, fetch_channel_feed
 
@@ -31,6 +32,7 @@ def run_cycle(
     sleep_fn=time.sleep,
     avatar_url_fn=fetch_channel_avatar_url,
     avatar_bytes_fn=fetch_thumbnail,
+    retention_fn=apply_retention,
 ) -> dict:
     conn = connect(db_path)
     try:
@@ -47,6 +49,11 @@ def run_cycle(
         process_results = process_pending_videos(
             conn, media_dir, channel_names, download_fn=download_fn, tag_fn=tag_fn, sleep_fn=sleep_fn
         )
+
+        deleted_count = 0
+        for channel in config.channels:
+            effective_retention = channel.retention or config.retention
+            deleted_count += retention_fn(conn, channel, effective_retention, media_dir)
     finally:
         conn.close()
 
@@ -58,13 +65,15 @@ def run_cycle(
             logger.warning("Download failed for %s: %s", result.video_id, result.error)
 
     logger.info(
-        "Cycle complete: %d channel(s) polled, %d video(s) processed",
+        "Cycle complete: %d channel(s) polled, %d video(s) processed, %d episode(s) deleted (retention)",
         len(poll_results),
         len(process_results),
+        deleted_count,
     )
     return {
         "poll_results": [asdict(r) for r in poll_results],
         "process_results": [asdict(r) for r in process_results],
+        "retention_deleted": deleted_count,
     }
 
 

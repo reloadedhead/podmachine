@@ -35,6 +35,7 @@ VIDEO_COLUMNS = {
     "description": "TEXT",
     "thumbnail_url": "TEXT",
     "duration_seconds": "INTEGER",
+    "deleted_at": "TEXT",
 }
 
 CHANNEL_STATE_COLUMNS = {

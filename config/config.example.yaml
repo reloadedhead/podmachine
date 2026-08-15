@@ -5,9 +5,21 @@ poll_interval_minutes: 20
 # Must be an address your podcast apps can reach on your LAN.
 base_url: "http://podmachine.local:8000"
 
+# Optional: automatically delete old episodes to save disk space. Off
+# by default. Only "count" is implemented today (keep the N most recent
+# episodes per channel, delete the rest) — see docs/retention.md for
+# the planned "age" and "size" strategies.
+# retention:
+#   strategy: count
+#   keep_latest: 20
+
 channels: []
-# Example:
+# Example (retention can also be set per channel, overriding the
+# default above entirely rather than merging with it):
 # channels:
 #   - id: UCxxxxxxxxxxxxxxxxxxxxxx
 #     name: Example Channel
 #     slug: example-channel
+#     retention:
+#       strategy: count
+#       keep_latest: 5
