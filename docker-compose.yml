@@ -1,0 +1,16 @@
+services:
+  podmachine:
+    build: .
+    image: podmachine:latest
+    container_name: podmachine
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config:/config
+      - podmachine_data:/data
+    environment:
+      TZ: UTC
+
+volumes:
+  podmachine_data:

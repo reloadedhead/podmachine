@@ -1,0 +1,8 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+.venv
+config/config.yaml
+data
+README.md

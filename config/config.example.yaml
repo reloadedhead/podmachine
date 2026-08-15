@@ -1,0 +1,13 @@
+# Copy this file to config.yaml and edit it.
+
+poll_interval_minutes: 20
+
+# Must be an address your podcast apps can reach on your LAN.
+base_url: "http://podmachine.local:8000"
+
+channels: []
+# Example:
+# channels:
+#   - id: UCxxxxxxxxxxxxxxxxxxxxxx
+#     name: Example Channel
+#     slug: example-channel
