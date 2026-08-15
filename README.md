@@ -7,10 +7,7 @@ Runs as a single Docker container, intended for a Raspberry Pi.
 
 ## Setup
 
-Running the published image doesn't need the repo cloned — just
-`docker-compose.yml` and a config file:
-
-1. Grab the compose file and example config:
+1. Get the compose file and config:
 
    ```bash
    mkdir podmachine && cd podmachine
@@ -19,52 +16,25 @@ Running the published image doesn't need the repo cloned — just
    curl -fsSL -o config/config.yaml https://raw.githubusercontent.com/reloadedhead/podmachine/main/config/config.example.yaml
    ```
 
-   (If you'd rather build from source, or want `git pull` to track future
-   `docker-compose.yml` changes automatically, clone the repo instead and
-   run the same commands from inside it — see "Published image" below.)
-
 2. Edit `config/config.yaml`: set `base_url` to an address your podcast
    apps can reach on your LAN (e.g. `http://podmachine.local:8000` or
    `http://<pi-ip>:8000`), and list the channels you want to follow.
 
-3. Pull and run — no local build, which matters on a Pi (no waiting on
-   pip/pydantic-core or ffmpeg compiling over its CPU):
+3. Pull and run:
 
    ```bash
    docker compose pull
    docker compose up -d
    ```
 
-4. Check it's alive:
+That's it — podmachine polls and downloads automatically from here on
+(`poll_interval_minutes`, starting immediately). Point a podcast app at:
 
-   ```bash
-   curl http://localhost:8000/healthz
-   ```
+```
+http://<pi-ip-or-podmachine.local>:8000/feeds/<channel-slug>.xml
+```
 
-5. That's it — podmachine polls and downloads automatically on
-   `poll_interval_minutes` (starting immediately on container start). Check
-   progress with:
-
-   ```bash
-   curl http://localhost:8000/channels
-   ```
-
-   Downloaded episodes land in the `podmachine_data` volume under
-   `media/<channel-slug>/<video-id>.mp3`. To force a cycle immediately
-   instead of waiting for the interval:
-
-   ```bash
-   curl -X POST http://localhost:8000/run
-   ```
-
-   `/poll` and `/process` still exist individually for finer-grained manual
-   testing (poll without downloading, or reprocess without re-polling).
-
-6. Point a podcast app at the feed:
-
-   ```
-   http://<pi-ip-or-podmachine.local>:8000/feeds/<channel-slug>.xml
-   ```
+To update later, re-run step 3.
 
 ## Published image
 
@@ -72,20 +42,7 @@ Every push to `main` that touches `src/`, `Dockerfile`, or
 `requirements.txt` builds and publishes a multi-arch (amd64 + arm64)
 image via GitHub Actions to `ghcr.io/reloadedhead/podmachine:latest`
 (`.github/workflows/docker-publish.yml`) — public, no login needed to
-pull. `docker-compose.yml` declares both `build:` and `image:`, so both
-`docker compose pull` and `docker compose up --build` work (see Setup
-above).
-
-To update an existing deployment to the latest published image:
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
-If `docker-compose.yml` itself has changed since you set up (rare —
-check the repo's commit history), re-fetch it first: `git pull` if you
-cloned, or re-run the `curl` command from Setup otherwise.
+pull.
 
 ## Config reference
 
@@ -96,6 +53,19 @@ cloned, or re-run the `curl` command from Setup otherwise.
 | `channels[].id` | YouTube channel ID (`UC...`) |
 | `channels[].name` | Display name used as podcast/episode metadata |
 | `channels[].slug` | URL-safe identifier, used in feed and file paths |
+
+## Endpoints
+
+| Endpoint | Description |
+|---|---|
+| `GET /healthz` | Liveness check |
+| `GET /channels` | Per-channel status: baseline state, poll failures, video counts |
+| `POST /run` | Force a full poll + download cycle immediately |
+| `POST /poll` | Poll for new videos only, without downloading |
+| `POST /process` | Download/tag anything already pending, without polling |
+| `GET /feeds/<slug>.xml` | Podcast RSS feed for a channel |
+| `GET /media/<slug>/<file>` | Episode audio file |
+| `GET /artwork/<slug>.jpg` | Channel cover art |
 
 ## Development
 
