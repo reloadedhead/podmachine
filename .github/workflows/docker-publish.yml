@@ -3,6 +3,11 @@ name: Publish Docker image
 on:
   push:
     branches: [main]
+    paths:
+      - "src/**"
+      - "Dockerfile"
+      - "requirements.txt"
+      - ".github/workflows/docker-publish.yml"
 
 env:
   REGISTRY: ghcr.io
