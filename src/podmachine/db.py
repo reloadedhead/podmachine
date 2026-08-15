@@ -41,6 +41,7 @@ CHANNEL_STATE_COLUMNS = {
     "consecutive_poll_failures": "INTEGER NOT NULL DEFAULT 0",
     "backed_off_until": "TEXT",
     "last_poll_error": "TEXT",
+    "avatar_path": "TEXT",
 }
 
 

@@ -8,13 +8,14 @@ from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
+from podmachine.artwork import ensure_channel_artwork
 from podmachine.config import AppConfig
 from podmachine.db import connect
 from podmachine.downloader import download_audio
 from podmachine.poller import poll_all_channels
 from podmachine.processor import process_pending_videos
-from podmachine.tagger import tag_audio_file
-from podmachine.youtube import fetch_channel_feed
+from podmachine.tagger import fetch_thumbnail, tag_audio_file
+from podmachine.youtube import fetch_channel_avatar_url, fetch_channel_feed
 
 logger = logging.getLogger("podmachine.scheduler")
 
@@ -28,10 +29,19 @@ def run_cycle(
     download_fn=download_audio,
     tag_fn=tag_audio_file,
     sleep_fn=time.sleep,
+    avatar_url_fn=fetch_channel_avatar_url,
+    avatar_bytes_fn=fetch_thumbnail,
 ) -> dict:
     conn = connect(db_path)
     try:
         poll_results = poll_all_channels(conn, config.channels, fetch=fetch_fn, sleep_fn=sleep_fn)
+
+        artwork_dir = config.data_dir / "artwork"
+        for channel in config.channels:
+            ensure_channel_artwork(
+                conn, channel, artwork_dir, avatar_url_fn=avatar_url_fn, fetch_bytes_fn=avatar_bytes_fn
+            )
+
         media_dir = config.data_dir / "media"
         channel_names = {c.slug: c.name for c in config.channels}
         process_results = process_pending_videos(

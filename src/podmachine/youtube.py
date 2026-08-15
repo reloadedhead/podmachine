@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from typing import Any
 
 import requests
+import yt_dlp
 
 FEED_URL = "https://www.youtube.com/feeds/videos.xml"
 USER_AGENT = "podmachine-poller/0.1"
@@ -57,3 +59,30 @@ def parse_feed(xml_text: str) -> list[VideoEntry]:
             )
         )
     return entries
+
+
+def fetch_channel_avatar_url(channel_id: str) -> str | None:
+    # extract_flat + playlist_items='0' fetches only the channel's own
+    # metadata (title, thumbnails) without enumerating any of its videos —
+    # verified this takes well under a second regardless of channel size.
+    ydl_opts = {
+        "extract_flat": "in_playlist",
+        "playlist_items": "0",
+        "quiet": True,
+        "no_warnings": True,
+    }
+    url = f"https://www.youtube.com/channel/{channel_id}"
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+    return select_avatar_url(info.get("thumbnails") or [])
+
+
+def select_avatar_url(thumbnails: list[dict[str, Any]]) -> str | None:
+    """Pick the channel avatar out of yt-dlp's thumbnail list. The channel
+    banner is included at several wide (~6:1) resolutions; the avatar is
+    the square one — verified against multiple real channels.
+    """
+    square = [t for t in thumbnails if t.get("width") and t.get("height") and t["width"] == t["height"]]
+    if not square:
+        return None
+    return max(square, key=lambda t: t["width"]).get("url")

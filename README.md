@@ -122,6 +122,13 @@ docker run --rm -v "$(pwd)":/app -w /app python:3.12-slim-bookworm \
 - The Docker image bundles Deno as yt-dlp's JS runtime, required for
   YouTube's signature extraction — without it, downloads fail with a
   misleading HTTP 403.
+- **Feed artwork.** Each channel's real avatar is fetched once (via a cheap
+  yt-dlp metadata-only call that doesn't enumerate any videos), cached to
+  `/data/artwork/<slug>.jpg`, and served at `/artwork/<slug>.jpg` for use
+  as the podcast's cover art — not hotlinked from Google's CDN. Until it's
+  fetched (or if the fetch ever fails), the feed falls back to borrowing
+  the most recent episode's thumbnail so it's never imageless. Per-episode
+  artwork always uses that episode's own real thumbnail.
 - The iTunes category is hardcoded to "Society & Culture" (Apple's taxonomy
   has no generic "Other") for every channel — not yet configurable per
   channel.

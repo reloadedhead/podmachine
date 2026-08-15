@@ -43,6 +43,15 @@ def seed_video(conn, video_id, status, published_at, **extra):
     conn.commit()
 
 
+def set_avatar_path(conn, slug, channel_id, path):
+    conn.execute(
+        "INSERT INTO channel_state (slug, channel_id, baseline_established, avatar_path) VALUES (?, ?, 1, ?) "
+        "ON CONFLICT(slug) DO UPDATE SET avatar_path = excluded.avatar_path",
+        (slug, channel_id, path),
+    )
+    conn.commit()
+
+
 def parse_items(xml_text):
     root = ET.fromstring(xml_text)
     return root.findall("./channel/item")
@@ -149,6 +158,45 @@ def test_itunes_image_omitted_when_url_has_no_recognizable_extension(tmp_path):
     item = parse_items(xml)[0]
 
     assert item.find("itunes:image", NAMESPACES) is None
+
+
+def test_feed_level_image_uses_cached_channel_avatar_over_episode_thumbnail(tmp_path):
+    conn = make_conn(tmp_path)
+    seed_video(
+        conn,
+        "vid1",
+        "done",
+        "2026-08-10T12:00:00+00:00",
+        file_size=1000,
+        thumbnail_url="https://i.ytimg.com/vi/vid1/hqdefault.jpg",
+    )
+    set_avatar_path(conn, CHANNEL.slug, CHANNEL.id, "/data/artwork/chan.jpg")
+
+    xml = build_channel_feed(conn, CHANNEL, BASE_URL)
+    root = ET.fromstring(xml)
+
+    expected = f"{BASE_URL}/artwork/{CHANNEL.slug}.jpg"
+    assert root.findtext("./channel/image/url") == expected
+    itunes_image = root.find("./channel/itunes:image", NAMESPACES)
+    assert itunes_image.get("href") == expected
+
+
+def test_feed_level_image_falls_back_to_episode_thumbnail_when_avatar_not_cached(tmp_path):
+    conn = make_conn(tmp_path)
+    seed_video(
+        conn,
+        "vid1",
+        "done",
+        "2026-08-10T12:00:00+00:00",
+        file_size=1000,
+        thumbnail_url="https://i.ytimg.com/vi/vid1/hqdefault.jpg",
+    )
+    # no set_avatar_path call — avatar hasn't been fetched yet
+
+    xml = build_channel_feed(conn, CHANNEL, BASE_URL)
+    root = ET.fromstring(xml)
+
+    assert root.findtext("./channel/image/url") == "https://i.ytimg.com/vi/vid1/hqdefault.jpg"
 
 
 def test_empty_channel_produces_valid_feed_with_no_items(tmp_path):

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from podmachine.config import AppConfig, ChannelConfig
 from podmachine.db import connect, init_db
 from podmachine.downloader import DownloadResult
@@ -29,6 +31,10 @@ def fake_download(video_id, channel_slug, media_dir):
     return DownloadResult(video_id=video_id, success=True, file_path=f, file_size=f.stat().st_size, info={})
 
 
+def no_avatar(channel_id):
+    return None
+
+
 def test_run_cycle_first_poll_establishes_baseline_without_downloading(tmp_path):
     config = make_config(tmp_path, [CHANNEL])
     db_path = tmp_path / "podmachine.sqlite3"
@@ -42,7 +48,12 @@ def test_run_cycle_first_poll_establishes_baseline_without_downloading(tmp_path)
 
     catalog = [make_entry("old1"), make_entry("old2")]
     result = run_cycle(
-        config, db_path, fetch_fn=lambda channel_id: catalog, download_fn=tracking_download, tag_fn=lambda *a, **kw: None
+        config,
+        db_path,
+        fetch_fn=lambda channel_id: catalog,
+        download_fn=tracking_download,
+        tag_fn=lambda *a, **kw: None,
+        avatar_url_fn=no_avatar,
     )
 
     assert result["poll_results"][0]["baseline_established_now"] is True
@@ -56,11 +67,22 @@ def test_run_cycle_downloads_newly_discovered_video_in_same_cycle(tmp_path):
     init_db(db_path)
 
     baseline_catalog = [make_entry("old1")]
-    run_cycle(config, db_path, fetch_fn=lambda channel_id: baseline_catalog, tag_fn=lambda *a, **kw: None)
+    run_cycle(
+        config,
+        db_path,
+        fetch_fn=lambda channel_id: baseline_catalog,
+        tag_fn=lambda *a, **kw: None,
+        avatar_url_fn=no_avatar,
+    )
 
     updated_catalog = baseline_catalog + [make_entry("new1")]
     result = run_cycle(
-        config, db_path, fetch_fn=lambda channel_id: updated_catalog, download_fn=fake_download, tag_fn=lambda *a, **kw: None
+        config,
+        db_path,
+        fetch_fn=lambda channel_id: updated_catalog,
+        download_fn=fake_download,
+        tag_fn=lambda *a, **kw: None,
+        avatar_url_fn=no_avatar,
     )
 
     assert result["poll_results"][0]["new_pending"] == 1
@@ -71,6 +93,27 @@ def test_run_cycle_downloads_newly_discovered_video_in_same_cycle(tmp_path):
     conn = connect(db_path)
     row = conn.execute("SELECT status FROM videos WHERE video_id = 'new1'").fetchone()
     assert row["status"] == "done"
+
+
+def test_run_cycle_fetches_and_caches_channel_avatar(tmp_path):
+    config = make_config(tmp_path, [CHANNEL])
+    db_path = tmp_path / "podmachine.sqlite3"
+    init_db(db_path)
+
+    run_cycle(
+        config,
+        db_path,
+        fetch_fn=lambda channel_id: [],
+        avatar_url_fn=lambda channel_id: "https://example.com/avatar.jpg",
+        avatar_bytes_fn=lambda url: b"fake-avatar-bytes",
+    )
+
+    conn = connect(db_path)
+    row = conn.execute(
+        "SELECT avatar_path FROM channel_state WHERE slug = ?", (CHANNEL.slug,)
+    ).fetchone()
+    assert row["avatar_path"] is not None
+    assert Path(row["avatar_path"]).read_bytes() == b"fake-avatar-bytes"
 
 
 def test_run_cycle_with_no_channels_returns_empty_results(tmp_path):

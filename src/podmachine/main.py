@@ -59,7 +59,7 @@ def list_channels() -> dict:
         for channel in config.channels:
             state_row = conn.execute(
                 "SELECT baseline_established, last_polled_at, consecutive_poll_failures, "
-                "backed_off_until, last_poll_error FROM channel_state WHERE slug = ?",
+                "backed_off_until, last_poll_error, avatar_path FROM channel_state WHERE slug = ?",
                 (channel.slug,),
             ).fetchone()
             counts_rows = conn.execute(
@@ -77,6 +77,7 @@ def list_channels() -> dict:
                     "consecutive_poll_failures": state_row["consecutive_poll_failures"] if state_row else 0,
                     "backed_off_until": state_row["backed_off_until"] if state_row else None,
                     "last_poll_error": state_row["last_poll_error"] if state_row else None,
+                    "has_avatar": bool(state_row["avatar_path"]) if state_row else False,
                     "video_counts": counts,
                 }
             )
@@ -136,3 +137,12 @@ def get_media_file(channel_slug: str, filename: str) -> FileResponse:
     if media_root not in file_path.parents or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Not found")
     return FileResponse(file_path, media_type="audio/mpeg")
+
+
+@app.api_route("/artwork/{channel_slug}.jpg", methods=["GET", "HEAD"])
+def get_artwork(channel_slug: str) -> FileResponse:
+    artwork_root = (app.state.config.data_dir / "artwork").resolve()
+    file_path = (artwork_root / f"{channel_slug}.jpg").resolve()
+    if artwork_root not in file_path.parents or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(file_path, media_type="image/jpeg")

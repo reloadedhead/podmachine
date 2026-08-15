@@ -1,4 +1,4 @@
-from podmachine.youtube import parse_feed
+from podmachine.youtube import parse_feed, select_avatar_url
 
 FEED_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
@@ -55,3 +55,36 @@ def test_parse_feed_handles_empty_feed():
 </feed>
 """
     assert parse_feed(empty) == []
+
+
+# Real yt-dlp channel thumbnail lists mix wide (~6:1) banner crops at
+# several resolutions with exactly one square avatar — verified against
+# multiple real channels before writing this selection logic.
+REAL_SHAPED_THUMBNAILS = [
+    {"id": "0", "url": "https://example.com/banner-1060.jpg", "width": 1060, "height": 175},
+    {"id": "1", "url": "https://example.com/banner-1138.jpg", "width": 1138, "height": 188},
+    {"id": "5", "url": "https://example.com/banner-2560.jpg", "width": 2560, "height": 424},
+    {"id": "banner_uncropped", "url": "https://example.com/banner-full.jpg"},
+    {"id": "7", "url": "https://example.com/avatar-900.jpg", "width": 900, "height": 900},
+    {"id": "avatar_uncropped", "url": "https://example.com/avatar-full.jpg"},
+]
+
+
+def test_select_avatar_url_picks_the_square_thumbnail():
+    assert select_avatar_url(REAL_SHAPED_THUMBNAILS) == "https://example.com/avatar-900.jpg"
+
+
+def test_select_avatar_url_prefers_largest_square_when_multiple():
+    thumbnails = REAL_SHAPED_THUMBNAILS + [
+        {"id": "8", "url": "https://example.com/avatar-300.jpg", "width": 300, "height": 300}
+    ]
+    assert select_avatar_url(thumbnails) == "https://example.com/avatar-900.jpg"
+
+
+def test_select_avatar_url_returns_none_when_only_banners_present():
+    banners_only = [t for t in REAL_SHAPED_THUMBNAILS if t.get("width") != t.get("height")]
+    assert select_avatar_url(banners_only) is None
+
+
+def test_select_avatar_url_handles_empty_list():
+    assert select_avatar_url([]) is None

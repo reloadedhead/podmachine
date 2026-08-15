@@ -46,7 +46,16 @@ def build_channel_feed(conn: sqlite3.Connection, channel: ChannelConfig, base_ur
     fg.podcast.itunes_category(DEFAULT_ITUNES_CATEGORY)
     fg.podcast.itunes_explicit("no")
 
-    feed_image = next((row["thumbnail_url"] for row in rows if row["thumbnail_url"]), None)
+    channel_row = conn.execute("SELECT avatar_path FROM channel_state WHERE slug = ?", (channel.slug,)).fetchone()
+    if channel_row and channel_row["avatar_path"]:
+        # The real channel avatar, self-hosted (see artwork.py) — always
+        # ends in .jpg, so it passes feedgen's itunes:image check as-is.
+        feed_image = f"{base_url}/artwork/{channel.slug}.jpg"
+    else:
+        # Avatar not fetched yet (or fetch failed): fall back to borrowing
+        # the latest episode's thumbnail so the feed isn't imageless.
+        feed_image = next((row["thumbnail_url"] for row in rows if row["thumbnail_url"]), None)
+
     if feed_image:
         itunes_feed_image = _itunes_image_url(feed_image)
         if itunes_feed_image:
