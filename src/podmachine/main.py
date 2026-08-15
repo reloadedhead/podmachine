@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from podmachine.config import load_config
 from podmachine.db import connect, init_db
 from podmachine.poller import poll_all_channels
+from podmachine.processor import process_pending_videos
 
 logging.basicConfig(
     level=logging.INFO,
@@ -81,6 +82,19 @@ def poll_now() -> dict:
     conn = connect(app.state.db_path)
     try:
         results = poll_all_channels(conn, config.channels)
+        return {"results": [asdict(r) for r in results]}
+    finally:
+        conn.close()
+
+
+@app.post("/process")
+def process_now() -> dict:
+    config = app.state.config
+    conn = connect(app.state.db_path)
+    try:
+        media_dir = config.data_dir / "media"
+        channel_names = {c.slug: c.name for c in config.channels}
+        results = process_pending_videos(conn, media_dir, channel_names)
         return {"results": [asdict(r) for r in results]}
     finally:
         conn.close()

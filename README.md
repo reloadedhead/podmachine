@@ -7,9 +7,11 @@ Runs as a single Docker container, intended for a Raspberry Pi.
 
 ## Status
 
-Phase 1 — channel polling is live: new uploads are detected via each
-channel's YouTube RSS feed and tracked in SQLite. Downloading, tagging, and
-feed serving land in later phases.
+Phase 2 — the full pipeline works: new uploads are detected via RSS,
+downloaded as audio-only with yt-dlp, and tagged with mutagen (title,
+channel as artist/album, date, embedded cover art, description). Feed
+generation and serving land in a later phase; everything is still manually
+triggered via HTTP endpoints until Phase 4 adds scheduling.
 
 When a channel is polled for the first time, its current catalog is recorded
 as a baseline and nothing is queued for download — only videos discovered on
@@ -40,13 +42,18 @@ backfill" even across container restarts (state lives in the `/data` volume).
    curl http://localhost:8000/healthz
    ```
 
-4. Trigger a poll and inspect channel state (this happens on a schedule
-   automatically starting in Phase 4 — for now it's manual):
+4. Trigger a poll, then download+tag anything newly discovered (this
+   happens on a schedule automatically starting in Phase 4 — for now both
+   steps are manual):
 
    ```bash
    curl -X POST http://localhost:8000/poll
+   curl -X POST http://localhost:8000/process
    curl http://localhost:8000/channels
    ```
+
+   Downloaded episodes land in the `podmachine_data` volume under
+   `media/<channel-slug>/<video-id>.mp3`.
 
 ## Config reference
 
@@ -74,5 +81,11 @@ docker run --rm -v "$(pwd)":/app -w /app python:3.12-slim-bookworm \
   history backfill.
 - YouTube Shorts are skipped, detected directly from the RSS entry's link
   (`/shorts/...` vs `/watch?v=...`) — no extra request needed.
+- The Docker image bundles Deno as yt-dlp's JS runtime, required for
+  YouTube's signature extraction — without it, downloads fail with a
+  misleading HTTP 403. Occasional 403s even with Deno present are normal
+  YouTube-side flakiness; Phase 5 adds retry/backoff for this. There's no
+  retry yet — a failed download is marked `failed` in the database and
+  `/process` won't touch it again automatically.
 - For personal/private LAN use only — don't expose this outside your network
   or redistribute the feeds.

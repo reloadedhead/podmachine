@@ -24,6 +24,16 @@ CREATE TABLE IF NOT EXISTS videos (
 CREATE INDEX IF NOT EXISTS idx_videos_channel_slug ON videos(channel_slug);
 """
 
+# Additive columns layered onto `videos` after the initial release. Applied
+# via ALTER TABLE rather than baked into SCHEMA so existing deployments keep
+# their data instead of needing the volume wiped on every schema change.
+VIDEO_COLUMNS = {
+    "file_path": "TEXT",
+    "file_size": "INTEGER",
+    "downloaded_at": "TEXT",
+    "error_message": "TEXT",
+}
+
 
 def connect(db_path: Path) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -36,9 +46,17 @@ def init_db(db_path: Path) -> None:
     conn = connect(db_path)
     try:
         conn.executescript(SCHEMA)
+        _ensure_columns(conn, "videos", VIDEO_COLUMNS)
         conn.commit()
     finally:
         conn.close()
+
+
+def _ensure_columns(conn: sqlite3.Connection, table: str, columns: dict[str, str]) -> None:
+    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    for name, col_type in columns.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {col_type}")
 
 
 def utcnow_iso() -> str:
