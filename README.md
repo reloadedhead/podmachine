@@ -7,8 +7,14 @@ Runs as a single Docker container, intended for a Raspberry Pi.
 
 ## Status
 
-Phase 0 (scaffold) — config loading and a `/healthz` endpoint only. Channel
-polling, downloading, tagging, and feed serving land in later phases.
+Phase 1 — channel polling is live: new uploads are detected via each
+channel's YouTube RSS feed and tracked in SQLite. Downloading, tagging, and
+feed serving land in later phases.
+
+When a channel is polled for the first time, its current catalog is recorded
+as a baseline and nothing is queued for download — only videos discovered on
+*later* polls are treated as new. This is what enforces "no history
+backfill" even across container restarts (state lives in the `/data` volume).
 
 ## Setup
 
@@ -34,6 +40,14 @@ polling, downloading, tagging, and feed serving land in later phases.
    curl http://localhost:8000/healthz
    ```
 
+4. Trigger a poll and inspect channel state (this happens on a schedule
+   automatically starting in Phase 4 — for now it's manual):
+
+   ```bash
+   curl -X POST http://localhost:8000/poll
+   curl http://localhost:8000/channels
+   ```
+
 ## Config reference
 
 | Field | Description |
@@ -44,10 +58,21 @@ polling, downloading, tagging, and feed serving land in later phases.
 | `channels[].name` | Display name used as podcast/episode metadata |
 | `channels[].slug` | URL-safe identifier, used in feed and file paths |
 
+## Development
+
+Run tests inside a container matching the production Python version (the
+host machine's Python may be newer than what pinned deps have wheels for):
+
+```bash
+docker run --rm -v "$(pwd)":/app -w /app python:3.12-slim-bookworm \
+  bash -c "pip install -r requirements-dev.txt && pytest -q"
+```
+
 ## Notes
 
 - Only videos published *after* a channel is added are downloaded — no
   history backfill.
-- YouTube Shorts are skipped (duration ≤ 60s).
+- YouTube Shorts are skipped, detected directly from the RSS entry's link
+  (`/shorts/...` vs `/watch?v=...`) — no extra request needed.
 - For personal/private LAN use only — don't expose this outside your network
   or redistribute the feeds.
