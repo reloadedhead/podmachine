@@ -7,36 +7,32 @@ Runs as a single Docker container, intended for a Raspberry Pi.
 
 ## Setup
 
-1. Clone the repo:
+Running the published image doesn't need the repo cloned — just
+`docker-compose.yml` and a config file:
+
+1. Grab the compose file and example config:
 
    ```bash
-   git clone https://github.com/reloadedhead/podmachine.git
-   cd podmachine
+   mkdir podmachine && cd podmachine
+   curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/reloadedhead/podmachine/main/docker-compose.yml
+   mkdir -p config
+   curl -fsSL -o config/config.yaml https://raw.githubusercontent.com/reloadedhead/podmachine/main/config/config.example.yaml
    ```
 
-2. Copy the example config and edit it:
+   (If you'd rather build from source, or want `git pull` to track future
+   `docker-compose.yml` changes automatically, clone the repo instead and
+   run the same commands from inside it — see "Published image" below.)
 
-   ```bash
-   cp config/config.example.yaml config/config.yaml
-   ```
+2. Edit `config/config.yaml`: set `base_url` to an address your podcast
+   apps can reach on your LAN (e.g. `http://podmachine.local:8000` or
+   `http://<pi-ip>:8000`), and list the channels you want to follow.
 
-   Set `base_url` to an address your podcast apps can reach on your LAN
-   (e.g. `http://podmachine.local:8000` or `http://<pi-ip>:8000`), and list
-   the channels you want to follow.
-
-3. Pull and run the published image — no local build needed, which
-   matters on a Pi (no waiting on pip/pydantic-core or ffmpeg compiling
-   over its CPU):
+3. Pull and run — no local build, which matters on a Pi (no waiting on
+   pip/pydantic-core or ffmpeg compiling over its CPU):
 
    ```bash
    docker compose pull
    docker compose up -d
-   ```
-
-   Or build from source instead:
-
-   ```bash
-   docker compose up --build -d
    ```
 
 4. Check it's alive:
@@ -83,10 +79,13 @@ above).
 To update an existing deployment to the latest published image:
 
 ```bash
-git pull   # picks up any docker-compose.yml/config changes
 docker compose pull
 docker compose up -d
 ```
+
+If `docker-compose.yml` itself has changed since you set up (rare —
+check the repo's commit history), re-fetch it first: `git pull` if you
+cloned, or re-run the `curl` command from Setup otherwise.
 
 ## Config reference
 
