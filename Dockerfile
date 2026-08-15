@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # binary-only image rather than curl|sh-ing an install script into the image.
 COPY --from=deno /deno /usr/local/bin/deno
 
+RUN useradd --uid 1000 --create-home --shell /usr/sbin/nologin appuser
+
 WORKDIR /app
 
 COPY requirements.txt .
@@ -18,8 +20,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src/
 
+# /data is a volume mount; pre-creating it here with the right ownership
+# means Docker copies that ownership into the (initially empty) named
+# volume on first mount, so appuser can write to it without a separate
+# entrypoint/gosu dance.
+RUN mkdir -p /data && chown -R appuser:appuser /data
+
 ENV PYTHONPATH=/app/src \
-    PODMACHINE_CONFIG=/config/config.yaml
+    PODMACHINE_CONFIG=/config/config.yaml \
+    PYTHONDONTWRITEBYTECODE=1
+
+USER appuser
 
 EXPOSE 8000
 

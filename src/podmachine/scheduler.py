@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -26,14 +27,15 @@ def run_cycle(
     fetch_fn=fetch_channel_feed,
     download_fn=download_audio,
     tag_fn=tag_audio_file,
+    sleep_fn=time.sleep,
 ) -> dict:
     conn = connect(db_path)
     try:
-        poll_results = poll_all_channels(conn, config.channels, fetch=fetch_fn)
+        poll_results = poll_all_channels(conn, config.channels, fetch=fetch_fn, sleep_fn=sleep_fn)
         media_dir = config.data_dir / "media"
         channel_names = {c.slug: c.name for c in config.channels}
         process_results = process_pending_videos(
-            conn, media_dir, channel_names, download_fn=download_fn, tag_fn=tag_fn
+            conn, media_dir, channel_names, download_fn=download_fn, tag_fn=tag_fn, sleep_fn=sleep_fn
         )
     finally:
         conn.close()

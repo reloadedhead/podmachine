@@ -11,6 +11,9 @@ services:
       - podmachine_data:/data
     environment:
       TZ: UTC
+    read_only: true
+    tmpfs:
+      - /tmp
 
 volumes:
   podmachine_data:

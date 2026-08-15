@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import random
 import sqlite3
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -14,6 +16,18 @@ logger = logging.getLogger("podmachine.processor")
 
 DownloadFn = Callable[[str, str, Path], DownloadResult]
 TagFn = Callable[..., None]
+SleepFn = Callable[[float], None]
+
+# YouTube-side 403s are often transient (confirmed by hand during Phase 2
+# testing: an immediate manual retry succeeded). Retry a few times with
+# exponential backoff before giving up.
+MAX_DOWNLOAD_ATTEMPTS = 3
+RETRY_BASE_SECONDS = 2
+
+# Small randomized gap between sequential downloads, same reasoning as the
+# poller's inter-channel jitter: avoid bursty, bot-like request patterns.
+DOWNLOAD_JITTER_MIN_SECONDS = 1.0
+DOWNLOAD_JITTER_MAX_SECONDS = 3.0
 
 
 @dataclass
@@ -30,12 +44,43 @@ def process_pending_videos(
     channel_names: dict[str, str],
     download_fn: DownloadFn = download_audio,
     tag_fn: TagFn = tag_audio_file,
+    sleep_fn: SleepFn = time.sleep,
 ) -> list[ProcessResult]:
     rows = conn.execute(
         "SELECT video_id, channel_slug, title, published_at FROM videos WHERE status = 'pending'"
     ).fetchall()
 
-    return [_process_one(conn, row, media_dir, channel_names, download_fn, tag_fn) for row in rows]
+    results = []
+    for i, row in enumerate(rows):
+        results.append(_process_one(conn, row, media_dir, channel_names, download_fn, tag_fn, sleep_fn))
+        if i < len(rows) - 1:
+            sleep_fn(random.uniform(DOWNLOAD_JITTER_MIN_SECONDS, DOWNLOAD_JITTER_MAX_SECONDS))
+    return results
+
+
+def _download_with_retry(
+    video_id: str,
+    channel_slug: str,
+    media_dir: Path,
+    download_fn: DownloadFn,
+    sleep_fn: SleepFn,
+) -> DownloadResult:
+    result = None
+    for attempt in range(1, MAX_DOWNLOAD_ATTEMPTS + 1):
+        result = download_fn(video_id, channel_slug, media_dir)
+        if result.success or attempt == MAX_DOWNLOAD_ATTEMPTS:
+            return result
+        backoff = RETRY_BASE_SECONDS * (2 ** (attempt - 1))
+        logger.warning(
+            "Download attempt %d/%d failed for %s: %s (retrying in %ds)",
+            attempt,
+            MAX_DOWNLOAD_ATTEMPTS,
+            video_id,
+            result.error,
+            backoff,
+        )
+        sleep_fn(backoff)
+    return result
 
 
 def _process_one(
@@ -45,6 +90,7 @@ def _process_one(
     channel_names: dict[str, str],
     download_fn: DownloadFn,
     tag_fn: TagFn,
+    sleep_fn: SleepFn,
 ) -> ProcessResult:
     video_id = row["video_id"]
     channel_slug = row["channel_slug"]
@@ -52,7 +98,7 @@ def _process_one(
     conn.execute("UPDATE videos SET status = 'downloading' WHERE video_id = ?", (video_id,))
     conn.commit()
 
-    result = download_fn(video_id, channel_slug, media_dir)
+    result = _download_with_retry(video_id, channel_slug, media_dir, download_fn, sleep_fn)
 
     if not result.success:
         conn.execute(
@@ -60,7 +106,7 @@ def _process_one(
             (result.error, video_id),
         )
         conn.commit()
-        logger.warning("Download failed for %s: %s", video_id, result.error)
+        logger.warning("Download failed for %s after %d attempts: %s", video_id, MAX_DOWNLOAD_ATTEMPTS, result.error)
         return ProcessResult(video_id, channel_slug, False, result.error)
 
     info = result.info or {}

@@ -9,6 +9,10 @@ import yt_dlp
 
 logger = logging.getLogger("podmachine.downloader")
 
+# Bytes/sec. Audio-only files are small, so this isn't about bandwidth —
+# it's about not looking like a bot hammering YouTube as fast as possible.
+DOWNLOAD_RATE_LIMIT_BYTES_PER_SEC = 2_000_000
+
 
 @dataclass
 class DownloadResult:
@@ -39,6 +43,11 @@ def download_audio(video_id: str, channel_slug: str, media_dir: Path) -> Downloa
     out_dir.mkdir(parents=True, exist_ok=True)
     out_template = str(out_dir / f"{video_id}.%(ext)s")
 
+    # Explicit cachedir rather than yt-dlp's default (under $HOME) — under
+    # the non-root container user, $HOME may not be writable, but /data
+    # (media_dir's parent) always is.
+    cache_dir = media_dir.parent / ".yt-dlp-cache"
+
     ydl_opts = {
         "format": "bestaudio/best",
         "outtmpl": out_template,
@@ -49,6 +58,8 @@ def download_audio(video_id: str, channel_slug: str, media_dir: Path) -> Downloa
                 "preferredquality": "5",
             }
         ],
+        "ratelimit": DOWNLOAD_RATE_LIMIT_BYTES_PER_SEC,
+        "cachedir": str(cache_dir),
         "quiet": True,
         "no_warnings": True,
         "noprogress": True,

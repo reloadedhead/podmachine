@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sqlite3
 from datetime import datetime, timezone
 
@@ -7,7 +8,22 @@ from feedgen.feed import FeedGenerator
 
 from podmachine.config import ChannelConfig
 
+logger = logging.getLogger("podmachine.feed")
+
 DEFAULT_ITUNES_CATEGORY = "Society & Culture"
+
+
+def _itunes_image_url(url: str | None) -> str | None:
+    """feedgen requires itunes:image URLs to end in .jpg/.png, but YouTube
+    thumbnail URLs commonly carry a sizing query string after the
+    extension (e.g. '...sd2.jpg?sqp=...'). Strip it so the still-valid
+    image URL passes feedgen's check instead of raising and taking the
+    whole feed down.
+    """
+    if not url:
+        return None
+    stripped = url.split("?", 1)[0]
+    return stripped if stripped.lower().endswith((".jpg", ".png")) else None
 
 
 def build_channel_feed(conn: sqlite3.Connection, channel: ChannelConfig, base_url: str) -> str:
@@ -32,7 +48,11 @@ def build_channel_feed(conn: sqlite3.Connection, channel: ChannelConfig, base_ur
 
     feed_image = next((row["thumbnail_url"] for row in rows if row["thumbnail_url"]), None)
     if feed_image:
-        fg.podcast.itunes_image(feed_image)
+        itunes_feed_image = _itunes_image_url(feed_image)
+        if itunes_feed_image:
+            fg.podcast.itunes_image(itunes_feed_image)
+        # The plain RSS <image> isn't suffix-restricted, so the original
+        # URL (with any sizing query string) is fine to use as-is here.
         fg.image(url=feed_image, title=channel.name, link=f"{base_url}/feeds/{channel.slug}.xml")
 
     for row in rows:
@@ -54,8 +74,9 @@ def build_channel_feed(conn: sqlite3.Connection, channel: ChannelConfig, base_ur
         )
         if row["duration_seconds"]:
             fe.podcast.itunes_duration(int(row["duration_seconds"]))
-        if row["thumbnail_url"]:
-            fe.podcast.itunes_image(row["thumbnail_url"])
+        episode_image = _itunes_image_url(row["thumbnail_url"])
+        if episode_image:
+            fe.podcast.itunes_image(episode_image)
 
     return fg.rss_str(pretty=True).decode("utf-8")
 

@@ -6,6 +6,7 @@ requests==2.32.3
 mutagen==1.47.0
 feedgen==1.0.0
 apscheduler==3.11.3
-# yt-dlp intentionally unpinned: needs to track YouTube's frequent changes.
-# Phase 5 locks this to a specific tested version + a documented update runbook.
-yt-dlp
+# Pinned to the version verified throughout this project's testing.
+# YouTube changes frequently enough that this WILL need bumping eventually —
+# see the "yt-dlp update runbook" section in README.md when it does.
+yt-dlp==2026.07.04

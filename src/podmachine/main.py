@@ -58,7 +58,8 @@ def list_channels() -> dict:
         channels = []
         for channel in config.channels:
             state_row = conn.execute(
-                "SELECT baseline_established, last_polled_at FROM channel_state WHERE slug = ?",
+                "SELECT baseline_established, last_polled_at, consecutive_poll_failures, "
+                "backed_off_until, last_poll_error FROM channel_state WHERE slug = ?",
                 (channel.slug,),
             ).fetchone()
             counts_rows = conn.execute(
@@ -73,6 +74,9 @@ def list_channels() -> dict:
                     "id": channel.id,
                     "baseline_established": bool(state_row["baseline_established"]) if state_row else False,
                     "last_polled_at": state_row["last_polled_at"] if state_row else None,
+                    "consecutive_poll_failures": state_row["consecutive_poll_failures"] if state_row else 0,
+                    "backed_off_until": state_row["backed_off_until"] if state_row else None,
+                    "last_poll_error": state_row["last_poll_error"] if state_row else None,
                     "video_counts": counts,
                 }
             )

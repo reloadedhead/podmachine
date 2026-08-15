@@ -37,6 +37,12 @@ VIDEO_COLUMNS = {
     "duration_seconds": "INTEGER",
 }
 
+CHANNEL_STATE_COLUMNS = {
+    "consecutive_poll_failures": "INTEGER NOT NULL DEFAULT 0",
+    "backed_off_until": "TEXT",
+    "last_poll_error": "TEXT",
+}
+
 
 def connect(db_path: Path) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -50,6 +56,7 @@ def init_db(db_path: Path) -> None:
     try:
         conn.executescript(SCHEMA)
         _ensure_columns(conn, "videos", VIDEO_COLUMNS)
+        _ensure_columns(conn, "channel_state", CHANNEL_STATE_COLUMNS)
         conn.commit()
     finally:
         conn.close()

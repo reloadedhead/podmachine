@@ -112,6 +112,45 @@ def test_description_falls_back_to_title_when_missing(tmp_path):
     assert item.findtext("description") == "Title vid1"
 
 
+def test_itunes_image_strips_query_string_from_thumbnail_url(tmp_path):
+    # Real bug hit during Phase 5 testing: YouTube thumbnail URLs often
+    # carry a sizing query string after the extension
+    # ('...sd2.jpg?sqp=...'), which feedgen's itunes:image setter rejects
+    # outright, taking down the whole feed with a 500.
+    conn = make_conn(tmp_path)
+    seed_video(
+        conn,
+        "vid1",
+        "done",
+        "2026-08-10T12:00:00+00:00",
+        file_size=1000,
+        thumbnail_url="https://i.ytimg.com/vi/vid1/sd2.jpg?sqp=abc123&rs=xyz",
+    )
+
+    xml = build_channel_feed(conn, CHANNEL, BASE_URL)  # must not raise
+    item = parse_items(xml)[0]
+
+    image = item.find("itunes:image", NAMESPACES)
+    assert image.get("href") == "https://i.ytimg.com/vi/vid1/sd2.jpg"
+
+
+def test_itunes_image_omitted_when_url_has_no_recognizable_extension(tmp_path):
+    conn = make_conn(tmp_path)
+    seed_video(
+        conn,
+        "vid1",
+        "done",
+        "2026-08-10T12:00:00+00:00",
+        file_size=1000,
+        thumbnail_url="https://example.com/thumb.webp",
+    )
+
+    xml = build_channel_feed(conn, CHANNEL, BASE_URL)  # must not raise
+    item = parse_items(xml)[0]
+
+    assert item.find("itunes:image", NAMESPACES) is None
+
+
 def test_empty_channel_produces_valid_feed_with_no_items(tmp_path):
     conn = make_conn(tmp_path)
 

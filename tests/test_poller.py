@@ -1,9 +1,12 @@
+from datetime import datetime, timedelta, timezone
+
 from podmachine.config import ChannelConfig
 from podmachine.db import connect, init_db
-from podmachine.poller import poll_channel
+from podmachine.poller import CIRCUIT_BREAKER_THRESHOLD, poll_all_channels, poll_channel
 from podmachine.youtube import VideoEntry
 
 CHANNEL = ChannelConfig(id="UCtest0000000000000000", name="Test Channel", slug="test-channel")
+CHANNEL_B = ChannelConfig(id="UCtest1111111111111111", name="Test Channel B", slug="test-channel-b")
 
 
 def make_entry(video_id: str, is_short: bool = False, published_at: str = "2026-08-10T12:00:00+00:00") -> VideoEntry:
@@ -90,3 +93,102 @@ def test_poll_failure_is_reported_without_raising(tmp_path):
 
     assert result.error == "network unreachable"
     assert result.new_pending == 0
+
+
+def channel_state_row(conn, slug):
+    return conn.execute(
+        "SELECT consecutive_poll_failures, backed_off_until, last_poll_error "
+        "FROM channel_state WHERE slug = ?",
+        (slug,),
+    ).fetchone()
+
+
+def test_circuit_breaker_opens_after_threshold_consecutive_failures(tmp_path):
+    conn = make_conn(tmp_path)
+
+    def failing_fetch(channel_id):
+        raise RuntimeError("boom")
+
+    for _ in range(CIRCUIT_BREAKER_THRESHOLD - 1):
+        poll_channel(conn, CHANNEL, fetch=failing_fetch)
+    row = channel_state_row(conn, CHANNEL.slug)
+    assert row["consecutive_poll_failures"] == CIRCUIT_BREAKER_THRESHOLD - 1
+    assert row["backed_off_until"] is None  # not yet at threshold
+
+    poll_channel(conn, CHANNEL, fetch=failing_fetch)
+    row = channel_state_row(conn, CHANNEL.slug)
+    assert row["consecutive_poll_failures"] == CIRCUIT_BREAKER_THRESHOLD
+    assert row["backed_off_until"] is not None
+    assert row["last_poll_error"] == "boom"
+
+
+def test_circuit_breaker_skips_polling_while_backed_off(tmp_path):
+    conn = make_conn(tmp_path)
+    future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    conn.execute(
+        "INSERT INTO channel_state (slug, channel_id, baseline_established, backed_off_until) "
+        "VALUES (?, ?, 1, ?)",
+        (CHANNEL.slug, CHANNEL.id, future),
+    )
+    conn.commit()
+
+    def unexpected_fetch(channel_id):
+        raise AssertionError("fetch should not be called while backed off")
+
+    result = poll_channel(conn, CHANNEL, fetch=unexpected_fetch)
+
+    assert result.skipped_backoff is True
+    assert result.error is None
+
+
+def test_circuit_breaker_resets_after_a_successful_poll(tmp_path):
+    conn = make_conn(tmp_path)
+
+    def failing_fetch(channel_id):
+        raise RuntimeError("boom")
+
+    poll_channel(conn, CHANNEL, fetch=failing_fetch)
+    poll_channel(conn, CHANNEL, fetch=failing_fetch)
+    assert channel_state_row(conn, CHANNEL.slug)["consecutive_poll_failures"] == 2
+
+    poll_channel(conn, CHANNEL, fetch=lambda channel_id: [])
+
+    row = channel_state_row(conn, CHANNEL.slug)
+    assert row["consecutive_poll_failures"] == 0
+    assert row["backed_off_until"] is None
+    assert row["last_poll_error"] is None
+
+
+def test_backoff_expires_and_polling_resumes(tmp_path):
+    conn = make_conn(tmp_path)
+    past = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    conn.execute(
+        "INSERT INTO channel_state (slug, channel_id, baseline_established, backed_off_until) "
+        "VALUES (?, ?, 1, ?)",
+        (CHANNEL.slug, CHANNEL.id, past),
+    )
+    conn.commit()
+
+    calls = []
+
+    def fetch(channel_id):
+        calls.append(channel_id)
+        return []
+
+    result = poll_channel(conn, CHANNEL, fetch=fetch)
+
+    assert result.skipped_backoff is False
+    assert calls == [CHANNEL.id]
+
+
+def test_poll_all_channels_jitters_between_channels_but_not_after_last(tmp_path):
+    conn = make_conn(tmp_path)
+
+    sleeps = []
+    poll_all_channels(
+        conn, [CHANNEL, CHANNEL_B], fetch=lambda channel_id: [], sleep_fn=sleeps.append
+    )
+
+    # 2 channels -> 1 gap between them, none after the last one
+    assert len(sleeps) == 1
+    assert 1.0 <= sleeps[0] <= 4.0

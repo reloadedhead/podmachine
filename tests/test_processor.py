@@ -1,6 +1,10 @@
 from podmachine.db import connect, init_db
 from podmachine.downloader import DownloadResult
-from podmachine.processor import process_pending_videos
+from podmachine.processor import MAX_DOWNLOAD_ATTEMPTS, process_pending_videos
+
+
+def no_sleep(seconds):
+    pass
 
 
 def make_conn(tmp_path):
@@ -71,7 +75,12 @@ def test_failed_download_marks_failed_with_error(tmp_path):
         return DownloadResult(video_id=video_id, success=False, error="boom")
 
     results = process_pending_videos(
-        conn, tmp_path / "media", {"chan": "Chan Name"}, download_fn=fake_download, tag_fn=lambda *a, **kw: None
+        conn,
+        tmp_path / "media",
+        {"chan": "Chan Name"},
+        download_fn=fake_download,
+        tag_fn=lambda *a, **kw: None,
+        sleep_fn=no_sleep,
     )
 
     assert results[0].success is False
@@ -80,6 +89,68 @@ def test_failed_download_marks_failed_with_error(tmp_path):
     row = conn.execute("SELECT status, error_message FROM videos WHERE video_id = 'vid1'").fetchone()
     assert row["status"] == "failed"
     assert row["error_message"] == "boom"
+
+
+def test_download_retries_and_recovers_on_a_later_attempt(tmp_path):
+    conn = make_conn(tmp_path)
+    seed_video(conn)
+    media_dir = tmp_path / "media"
+    attempts = []
+
+    def flaky_download(video_id, channel_slug, media_dir):
+        attempts.append(video_id)
+        if len(attempts) == 1:
+            return DownloadResult(video_id=video_id, success=False, error="transient 403")
+        out_dir = media_dir / channel_slug
+        out_dir.mkdir(parents=True, exist_ok=True)
+        f = out_dir / f"{video_id}.mp3"
+        f.write_bytes(b"fake-audio")
+        return DownloadResult(video_id=video_id, success=True, file_path=f, file_size=f.stat().st_size, info={})
+
+    sleeps = []
+    results = process_pending_videos(
+        conn,
+        media_dir,
+        {"chan": "Chan Name"},
+        download_fn=flaky_download,
+        tag_fn=lambda *a, **kw: None,
+        sleep_fn=sleeps.append,
+    )
+
+    assert results[0].success is True
+    assert len(attempts) == 2
+    assert sleeps == [2]  # one retry backoff before the second, successful attempt
+
+    row = conn.execute("SELECT status FROM videos WHERE video_id = 'vid1'").fetchone()
+    assert row["status"] == "done"
+
+
+def test_download_exhausts_retries_with_exponential_backoff(tmp_path):
+    conn = make_conn(tmp_path)
+    seed_video(conn)
+    attempts = []
+
+    def always_fails(video_id, channel_slug, media_dir):
+        attempts.append(video_id)
+        return DownloadResult(video_id=video_id, success=False, error="still broken")
+
+    sleeps = []
+    results = process_pending_videos(
+        conn,
+        tmp_path / "media",
+        {"chan": "Chan Name"},
+        download_fn=always_fails,
+        tag_fn=lambda *a, **kw: None,
+        sleep_fn=sleeps.append,
+    )
+
+    assert results[0].success is False
+    assert len(attempts) == MAX_DOWNLOAD_ATTEMPTS
+    assert sleeps == [2, 4]  # exponential backoff, no sleep after the final exhausted attempt
+
+    row = conn.execute("SELECT status, error_message FROM videos WHERE video_id = 'vid1'").fetchone()
+    assert row["status"] == "failed"
+    assert row["error_message"] == "still broken"
 
 
 def test_tagging_failure_does_not_discard_a_successful_download(tmp_path):
@@ -114,7 +185,12 @@ def test_success_after_a_prior_failure_clears_the_old_error(tmp_path):
         return DownloadResult(video_id=video_id, success=False, error="boom")
 
     process_pending_videos(
-        conn, tmp_path / "media", {"chan": "Chan"}, download_fn=failing_download, tag_fn=lambda *a, **kw: None
+        conn,
+        tmp_path / "media",
+        {"chan": "Chan"},
+        download_fn=failing_download,
+        tag_fn=lambda *a, **kw: None,
+        sleep_fn=no_sleep,
     )
     row = conn.execute("SELECT status, error_message FROM videos WHERE video_id = 'vid1'").fetchone()
     assert row["status"] == "failed"
@@ -131,7 +207,12 @@ def test_success_after_a_prior_failure_clears_the_old_error(tmp_path):
         return DownloadResult(video_id=video_id, success=True, file_path=f, file_size=f.stat().st_size, info={})
 
     process_pending_videos(
-        conn, tmp_path / "media", {"chan": "Chan"}, download_fn=succeeding_download, tag_fn=lambda *a, **kw: None
+        conn,
+        tmp_path / "media",
+        {"chan": "Chan"},
+        download_fn=succeeding_download,
+        tag_fn=lambda *a, **kw: None,
+        sleep_fn=no_sleep,
     )
 
     row = conn.execute("SELECT status, error_message FROM videos WHERE video_id = 'vid1'").fetchone()
@@ -155,3 +236,32 @@ def test_only_pending_videos_are_processed(tmp_path):
     )
 
     assert calls == []
+
+
+def test_jitter_sleeps_between_downloads_but_not_after_the_last(tmp_path):
+    conn = make_conn(tmp_path)
+    seed_video(conn, video_id="vid1")
+    seed_video(conn, video_id="vid2")
+    seed_video(conn, video_id="vid3")
+    media_dir = tmp_path / "media"
+
+    def fake_download(video_id, channel_slug, media_dir):
+        out_dir = media_dir / channel_slug
+        out_dir.mkdir(parents=True, exist_ok=True)
+        f = out_dir / f"{video_id}.mp3"
+        f.write_bytes(b"fake-audio")
+        return DownloadResult(video_id=video_id, success=True, file_path=f, file_size=f.stat().st_size, info={})
+
+    sleeps = []
+    process_pending_videos(
+        conn,
+        media_dir,
+        {"chan": "Chan"},
+        download_fn=fake_download,
+        tag_fn=lambda *a, **kw: None,
+        sleep_fn=sleeps.append,
+    )
+
+    # 3 videos -> 2 gaps between them, none after the last one
+    assert len(sleeps) == 2
+    assert all(1.0 <= s <= 3.0 for s in sleeps)
