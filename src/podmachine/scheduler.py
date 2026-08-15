@@ -1,0 +1,70 @@
+from __future__ import annotations
+
+import logging
+from dataclasses import asdict
+from datetime import datetime
+from pathlib import Path
+
+from apscheduler.schedulers.background import BackgroundScheduler
+
+from podmachine.config import AppConfig
+from podmachine.db import connect
+from podmachine.downloader import download_audio
+from podmachine.poller import poll_all_channels
+from podmachine.processor import process_pending_videos
+from podmachine.tagger import tag_audio_file
+from podmachine.youtube import fetch_channel_feed
+
+logger = logging.getLogger("podmachine.scheduler")
+
+JOB_ID = "podmachine-cycle"
+
+
+def run_cycle(
+    config: AppConfig,
+    db_path: Path,
+    fetch_fn=fetch_channel_feed,
+    download_fn=download_audio,
+    tag_fn=tag_audio_file,
+) -> dict:
+    conn = connect(db_path)
+    try:
+        poll_results = poll_all_channels(conn, config.channels, fetch=fetch_fn)
+        media_dir = config.data_dir / "media"
+        channel_names = {c.slug: c.name for c in config.channels}
+        process_results = process_pending_videos(
+            conn, media_dir, channel_names, download_fn=download_fn, tag_fn=tag_fn
+        )
+    finally:
+        conn.close()
+
+    for result in poll_results:
+        if result.error:
+            logger.warning("Poll failed for %s: %s", result.slug, result.error)
+    for result in process_results:
+        if not result.success:
+            logger.warning("Download failed for %s: %s", result.video_id, result.error)
+
+    logger.info(
+        "Cycle complete: %d channel(s) polled, %d video(s) processed",
+        len(poll_results),
+        len(process_results),
+    )
+    return {
+        "poll_results": [asdict(r) for r in poll_results],
+        "process_results": [asdict(r) for r in process_results],
+    }
+
+
+def start_scheduler(config: AppConfig, db_path: Path) -> BackgroundScheduler:
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        run_cycle,
+        "interval",
+        minutes=config.poll_interval_minutes,
+        args=[config, db_path],
+        id=JOB_ID,
+        next_run_time=datetime.now(),
+    )
+    scheduler.start()
+    return scheduler

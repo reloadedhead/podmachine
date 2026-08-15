@@ -4,3 +4,4 @@ __pycache__/
 config/config.yaml
 data/
 .DS_Store
+.claude/

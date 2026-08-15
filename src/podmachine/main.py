@@ -12,6 +12,7 @@ from podmachine.db import connect, init_db
 from podmachine.feed import build_channel_feed
 from podmachine.poller import poll_all_channels
 from podmachine.processor import process_pending_videos
+from podmachine.scheduler import run_cycle, start_scheduler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,7 +32,9 @@ async def lifespan(app: FastAPI):
         len(config.channels),
         config.poll_interval_minutes,
     )
+    app.state.scheduler = start_scheduler(config, app.state.db_path)
     yield
+    app.state.scheduler.shutdown(wait=False)
 
 
 app = FastAPI(title="podmachine", lifespan=lifespan)
@@ -100,6 +103,11 @@ def process_now() -> dict:
         return {"results": [asdict(r) for r in results]}
     finally:
         conn.close()
+
+
+@app.post("/run")
+def run_now() -> dict:
+    return run_cycle(app.state.config, app.state.db_path)
 
 
 @app.api_route("/feeds/{channel_slug}.xml", methods=["GET", "HEAD"])

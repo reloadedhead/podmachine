@@ -7,12 +7,13 @@ Runs as a single Docker container, intended for a Raspberry Pi.
 
 ## Status
 
-Phase 3 — the pipeline is podcast-app-ready end to end: new uploads are
-detected via RSS, downloaded as audio-only with yt-dlp, tagged with mutagen,
-and served as a per-channel podcast RSS feed (iTunes namespace, enclosures,
-artwork, HEAD + Range request support for streaming/resuming). Point any
-podcast app on your LAN at `/feeds/<channel-slug>.xml`. Everything is still
-manually triggered via HTTP endpoints until Phase 4 adds scheduling.
+Phase 4 — this is a working MVP. Fully hands-off: on an interval
+(`poll_interval_minutes`, running immediately on startup and then every
+interval after), podmachine polls every configured channel, downloads and
+tags anything new, and serves the result as a per-channel podcast RSS feed
+(iTunes namespace, enclosures, artwork, HEAD + Range request support for
+streaming/resuming). Point any podcast app on your LAN at
+`/feeds/<channel-slug>.xml` and new episodes just show up.
 
 When a channel is polled for the first time, its current catalog is recorded
 as a baseline and nothing is queued for download — only videos discovered on
@@ -43,18 +44,24 @@ backfill" even across container restarts (state lives in the `/data` volume).
    curl http://localhost:8000/healthz
    ```
 
-4. Trigger a poll, then download+tag anything newly discovered (this
-   happens on a schedule automatically starting in Phase 4 — for now both
-   steps are manual):
+4. That's it — podmachine polls and downloads automatically on
+   `poll_interval_minutes` (starting immediately on container start). Check
+   progress with:
 
    ```bash
-   curl -X POST http://localhost:8000/poll
-   curl -X POST http://localhost:8000/process
    curl http://localhost:8000/channels
    ```
 
    Downloaded episodes land in the `podmachine_data` volume under
-   `media/<channel-slug>/<video-id>.mp3`.
+   `media/<channel-slug>/<video-id>.mp3`. To force a cycle immediately
+   instead of waiting for the interval:
+
+   ```bash
+   curl -X POST http://localhost:8000/run
+   ```
+
+   `/poll` and `/process` still exist individually for finer-grained manual
+   testing (poll without downloading, or reprocess without re-polling).
 
 5. Point a podcast app at the feed:
 
