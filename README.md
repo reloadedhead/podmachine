@@ -7,7 +7,14 @@ Runs as a single Docker container, intended for a Raspberry Pi.
 
 ## Setup
 
-1. Copy the example config and edit it:
+1. Clone the repo:
+
+   ```bash
+   git clone https://github.com/reloadedhead/podmachine.git
+   cd podmachine
+   ```
+
+2. Copy the example config and edit it:
 
    ```bash
    cp config/config.example.yaml config/config.yaml
@@ -17,20 +24,28 @@ Runs as a single Docker container, intended for a Raspberry Pi.
    (e.g. `http://podmachine.local:8000` or `http://<pi-ip>:8000`), and list
    the channels you want to follow.
 
-2. Build and run — or pull the prebuilt image instead of compiling on the
-   Pi's CPU (see "Published image" below):
+3. Pull and run the published image — no local build needed, which
+   matters on a Pi (no waiting on pip/pydantic-core or ffmpeg compiling
+   over its CPU):
+
+   ```bash
+   docker compose pull
+   docker compose up -d
+   ```
+
+   Or build from source instead:
 
    ```bash
    docker compose up --build -d
    ```
 
-3. Check it's alive:
+4. Check it's alive:
 
    ```bash
    curl http://localhost:8000/healthz
    ```
 
-4. That's it — podmachine polls and downloads automatically on
+5. That's it — podmachine polls and downloads automatically on
    `poll_interval_minutes` (starting immediately on container start). Check
    progress with:
 
@@ -49,7 +64,7 @@ Runs as a single Docker container, intended for a Raspberry Pi.
    `/poll` and `/process` still exist individually for finer-grained manual
    testing (poll without downloading, or reprocess without re-polling).
 
-5. Point a podcast app at the feed:
+6. Point a podcast app at the feed:
 
    ```
    http://<pi-ip-or-podmachine.local>:8000/feeds/<channel-slug>.xml
@@ -57,24 +72,21 @@ Runs as a single Docker container, intended for a Raspberry Pi.
 
 ## Published image
 
-Every push to `main` builds and publishes a multi-arch (amd64 + arm64)
+Every push to `main` that touches `src/`, `Dockerfile`, or
+`requirements.txt` builds and publishes a multi-arch (amd64 + arm64)
 image via GitHub Actions to `ghcr.io/reloadedhead/podmachine:latest`
-(`.github/workflows/docker-publish.yml`). `docker-compose.yml` declares
-both `build:` and `image:`, so either workflow works:
+(`.github/workflows/docker-publish.yml`) — public, no login needed to
+pull. `docker-compose.yml` declares both `build:` and `image:`, so both
+`docker compose pull` and `docker compose up --build` work (see Setup
+above).
+
+To update an existing deployment to the latest published image:
 
 ```bash
-# fast path: pull the prebuilt image, no local compile
+git pull   # picks up any docker-compose.yml/config changes
 docker compose pull
 docker compose up -d
-
-# or: build from source as before
-docker compose up --build -d
 ```
-
-Pulling is significantly faster on a Pi than building — no waiting on
-pip/pydantic-core or ffmpeg compilation over the Pi's CPU. `git pull` is
-still worth doing alongside it to pick up `docker-compose.yml`/config
-changes, but the image itself no longer needs a local build.
 
 ## Config reference
 
