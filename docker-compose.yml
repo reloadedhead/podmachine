@@ -1,7 +1,7 @@
 services:
   podmachine:
     build: .
-    image: podmachine:latest
+    image: ghcr.io/reloadedhead/podmachine:latest
     container_name: podmachine
     restart: unless-stopped
     ports:

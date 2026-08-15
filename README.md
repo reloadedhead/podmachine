@@ -37,7 +37,8 @@ backfill" even across container restarts (state lives in the `/data` volume).
    (e.g. `http://podmachine.local:8000` or `http://<pi-ip>:8000`), and list
    the channels you want to follow.
 
-2. Build and run:
+2. Build and run — or pull the prebuilt image instead of compiling on the
+   Pi's CPU (see "Published image" below):
 
    ```bash
    docker compose up --build -d
@@ -73,6 +74,27 @@ backfill" even across container restarts (state lives in the `/data` volume).
    ```
    http://<pi-ip-or-podmachine.local>:8000/feeds/<channel-slug>.xml
    ```
+
+## Published image
+
+Every push to `main` builds and publishes a multi-arch (amd64 + arm64)
+image via GitHub Actions to `ghcr.io/reloadedhead/podmachine:latest`
+(`.github/workflows/docker-publish.yml`). `docker-compose.yml` declares
+both `build:` and `image:`, so either workflow works:
+
+```bash
+# fast path: pull the prebuilt image, no local compile
+docker compose pull
+docker compose up -d
+
+# or: build from source as before
+docker compose up --build -d
+```
+
+Pulling is significantly faster on a Pi than building — no waiting on
+pip/pydantic-core or ffmpeg compilation over the Pi's CPU. `git pull` is
+still worth doing alongside it to pick up `docker-compose.yml`/config
+changes, but the image itself no longer needs a local build.
 
 ## Config reference
 
