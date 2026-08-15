@@ -5,26 +5,6 @@ a podcast RSS feed per channel to any podcast app on your local network.
 
 Runs as a single Docker container, intended for a Raspberry Pi.
 
-## Status
-
-Phase 5 — MVP complete and hardened for unattended operation. Fully
-hands-off: on an interval (`poll_interval_minutes`, running immediately on
-startup and then every interval after), podmachine polls every configured
-channel, downloads and tags anything new, and serves the result as a
-per-channel podcast RSS feed (iTunes namespace, enclosures, artwork, HEAD +
-Range request support for streaming/resuming). Point any podcast app on
-your LAN at `/feeds/<channel-slug>.xml` and new episodes just show up.
-
-It also survives the failure modes you actually hit running this
-unattended for days at a time: transient YouTube 403s, a channel that
-starts failing to poll, and a container filesystem that shouldn't be
-writable outside its data directory. See "Resilience & hardening" below.
-
-When a channel is polled for the first time, its current catalog is recorded
-as a baseline and nothing is queued for download — only videos discovered on
-*later* polls are treated as new. This is what enforces "no history
-backfill" even across container restarts (state lives in the `/data` volume).
-
 ## Setup
 
 1. Copy the example config and edit it:
@@ -180,15 +160,3 @@ Edit the `yt-dlp==...` line in `requirements.txt` to that version, then
 rebuild (`docker compose up --build -d`) and check `/channels` after the
 next cycle. If it doesn't help, it's usually a matter of days before
 yt-dlp ships a fix — try again then.
-
-## Upgrading from a pre-Phase-5 deployment
-
-Phase 5 switched the container to a non-root user. An existing
-`podmachine_data` volume was created while running as root, so the new
-user can't write to it until you fix ownership once:
-
-```bash
-docker compose down
-docker run --rm -v podmachine_podmachine_data:/data alpine chown -R 1000:1000 /data
-docker compose up --build -d
-```
