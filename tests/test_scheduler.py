@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from podmachine.config import AppConfig, ChannelConfig, RetentionConfig
@@ -162,6 +163,48 @@ def test_run_cycle_applies_configured_retention_policy(tmp_path):
     assert conn.execute("SELECT status FROM videos WHERE video_id = 'new2'").fetchone()["status"] == "done"
 
 
+def test_run_cycle_requeues_and_reprocesses_stale_failure_in_same_cycle(tmp_path):
+    config = make_config(tmp_path, [CHANNEL])
+    db_path = tmp_path / "podmachine.sqlite3"
+    init_db(db_path)
+
+    # Establish baseline with no channel content, independent of the
+    # failed video we're about to seed by hand.
+    run_cycle(config, db_path, fetch_fn=lambda channel_id: [], avatar_url_fn=no_avatar)
+
+    conn = connect(db_path)
+    stale = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+    conn.execute(
+        "INSERT INTO videos (video_id, channel_slug, title, published_at, status, discovered_at, "
+        "last_attempt_at, error_message) VALUES ('stuck1', ?, 'Title', '2026-08-01T00:00:00+00:00', "
+        "'failed', '2026-08-01T00:00:00+00:00', ?, 'HTTP Error 403: Forbidden')",
+        (CHANNEL.slug, stale),
+    )
+    conn.commit()
+    conn.close()
+
+    result = run_cycle(
+        config,
+        db_path,
+        fetch_fn=lambda channel_id: [],
+        download_fn=fake_download,
+        tag_fn=lambda *a, **kw: None,
+        avatar_url_fn=no_avatar,
+    )
+
+    assert result["requeued"] == 1
+    assert len(result["process_results"]) == 1
+    assert result["process_results"][0]["video_id"] == "stuck1"
+    assert result["process_results"][0]["success"] is True
+
+    conn = connect(db_path)
+    row = conn.execute(
+        "SELECT status, long_range_retry_count FROM videos WHERE video_id = 'stuck1'"
+    ).fetchone()
+    assert row["status"] == "done"
+    assert row["long_range_retry_count"] == 1
+
+
 def test_run_cycle_with_no_channels_returns_empty_results(tmp_path):
     config = make_config(tmp_path, [])
     db_path = tmp_path / "podmachine.sqlite3"
@@ -172,7 +215,7 @@ def test_run_cycle_with_no_channels_returns_empty_results(tmp_path):
 
     result = run_cycle(config, db_path, fetch_fn=unexpected_fetch)
 
-    assert result == {"poll_results": [], "process_results": [], "retention_deleted": 0}
+    assert result == {"poll_results": [], "process_results": [], "retention_deleted": 0, "requeued": 0}
 
 
 def test_start_scheduler_registers_job_with_configured_interval(tmp_path):

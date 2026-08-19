@@ -99,11 +99,12 @@ def _process_one(
     conn.commit()
 
     result = _download_with_retry(video_id, channel_slug, media_dir, download_fn, sleep_fn)
+    now = utcnow_iso()
 
     if not result.success:
         conn.execute(
-            "UPDATE videos SET status = 'failed', error_message = ? WHERE video_id = ?",
-            (result.error, video_id),
+            "UPDATE videos SET status = 'failed', error_message = ?, last_attempt_at = ? WHERE video_id = ?",
+            (result.error, now, video_id),
         )
         conn.commit()
         logger.warning("Download failed for %s after %d attempts: %s", video_id, MAX_DOWNLOAD_ATTEMPTS, result.error)
@@ -130,12 +131,13 @@ def _process_one(
 
     conn.execute(
         "UPDATE videos SET status = 'done', file_path = ?, file_size = ?, "
-        "downloaded_at = ?, error_message = NULL, description = ?, "
+        "downloaded_at = ?, last_attempt_at = ?, error_message = NULL, description = ?, "
         "thumbnail_url = ?, duration_seconds = ? WHERE video_id = ?",
         (
             str(result.file_path),
             file_size,
-            utcnow_iso(),
+            now,
+            now,
             info.get("description") or None,
             info.get("thumbnail"),
             info.get("duration"),

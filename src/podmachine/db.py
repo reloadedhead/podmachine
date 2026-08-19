@@ -36,6 +36,8 @@ VIDEO_COLUMNS = {
     "thumbnail_url": "TEXT",
     "duration_seconds": "INTEGER",
     "deleted_at": "TEXT",
+    "last_attempt_at": "TEXT",
+    "long_range_retry_count": "INTEGER NOT NULL DEFAULT 0",
 }
 
 CHANNEL_STATE_COLUMNS = {

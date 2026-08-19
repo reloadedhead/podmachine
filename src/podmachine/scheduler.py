@@ -14,6 +14,7 @@ from podmachine.db import connect
 from podmachine.downloader import download_audio
 from podmachine.poller import poll_all_channels
 from podmachine.processor import process_pending_videos
+from podmachine.requeue import requeue_stale_failures
 from podmachine.retention import apply_retention
 from podmachine.tagger import fetch_thumbnail, tag_audio_file
 from podmachine.youtube import fetch_channel_avatar_url, fetch_channel_feed
@@ -33,6 +34,7 @@ def run_cycle(
     avatar_url_fn=fetch_channel_avatar_url,
     avatar_bytes_fn=fetch_thumbnail,
     retention_fn=apply_retention,
+    requeue_fn=requeue_stale_failures,
 ) -> dict:
     conn = connect(db_path)
     try:
@@ -43,6 +45,8 @@ def run_cycle(
             ensure_channel_artwork(
                 conn, channel, artwork_dir, avatar_url_fn=avatar_url_fn, fetch_bytes_fn=avatar_bytes_fn
             )
+
+        requeued_count = requeue_fn(conn)
 
         media_dir = config.data_dir / "media"
         channel_names = {c.slug: c.name for c in config.channels}
@@ -65,8 +69,10 @@ def run_cycle(
             logger.warning("Download failed for %s: %s", result.video_id, result.error)
 
     logger.info(
-        "Cycle complete: %d channel(s) polled, %d video(s) processed, %d episode(s) deleted (retention)",
+        "Cycle complete: %d channel(s) polled, %d stale failure(s) requeued, %d video(s) processed, "
+        "%d episode(s) deleted (retention)",
         len(poll_results),
+        requeued_count,
         len(process_results),
         deleted_count,
     )
@@ -74,6 +80,7 @@ def run_cycle(
         "poll_results": [asdict(r) for r in poll_results],
         "process_results": [asdict(r) for r in process_results],
         "retention_deleted": deleted_count,
+        "requeued": requeued_count,
     }
 
 

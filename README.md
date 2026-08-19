@@ -107,6 +107,12 @@ docker run --rm -v "$(pwd)":/app -w /app python:3.12-slim-bookworm \
   transient — this was verified directly: a manual retry during testing
   succeeded immediately, and the automated retry logs the same recovery
   pattern in production use.
+- **Long-range retry.** Some 403s aren't transient within a single cycle
+  but do resolve over days, as YouTube's bot-detection rollouts are
+  partial and evolving (see
+  [`docs/known-issues.md`](docs/known-issues.md)). Anything still `failed`
+  gets automatically requeued once a day, capped at 5 attempts, so
+  recovery doesn't depend on someone noticing and manually reprocessing.
 - **Per-channel circuit breaker.** A channel that fails to poll 5 times in
   a row (bad channel ID, deleted channel, persistent network issue) is left
   alone for 2 hours instead of being retried every cycle. Resets
