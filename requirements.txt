@@ -9,4 +9,4 @@ apscheduler==3.11.3
 # Pinned to the version verified throughout this project's testing.
 # YouTube changes frequently enough that this WILL need bumping eventually —
 # see the "yt-dlp update runbook" section in README.md when it does.
-yt-dlp==2026.07.04
+yt-dlp==2026.8.19
