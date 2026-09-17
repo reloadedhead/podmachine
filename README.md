@@ -56,6 +56,7 @@ pull.
 | `retention.strategy` | `none` (default) or `count`. See "Episode retention" below |
 | `retention.keep_latest` | Episodes to keep per channel when `strategy: count` |
 | `channels[].retention` | Optional per-channel override — replaces the global `retention` block entirely for that channel, not merged |
+| `admin.password` | Optional. Set to enable the admin web UI at `/admin/`, protected with this shared HTTP Basic auth password. Unset disables `/admin/` entirely (404) |
 
 ## Endpoints
 
@@ -69,6 +70,20 @@ pull.
 | `GET /feeds/<slug>.xml` | Podcast RSS feed for a channel |
 | `GET /media/<slug>/<file>` | Episode audio file |
 | `GET /artwork/<slug>.jpg` | Channel cover art |
+| `GET /admin/` | Admin dashboard (channel status, episode list, manual poll/process) — only if `admin.password` is set |
+
+## Admin web UI
+
+Set `admin.password` in `config.yaml` to enable a small dashboard at
+`/admin/` — per-channel status (last poll, failures, backoff, episode
+counts), a per-channel episode list with any error messages, and buttons
+to trigger a poll or a download/tag pass by hand. It's server-rendered
+HTML with [htmx](https://htmx.org) for the interactive bits (auto-refreshing
+tables, in-place button actions) — no JS framework, no build step; htmx
+itself is vendored into the image rather than loaded from a CDN. It's
+protected with HTTP Basic auth using the shared password (the rest of the
+API — feeds, media, JSON endpoints — stays unauthenticated, as it always
+has, since podcast apps need to reach it without a login prompt).
 
 ## Episode retention
 

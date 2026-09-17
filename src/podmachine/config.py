@@ -42,12 +42,19 @@ class ChannelConfig(BaseModel):
     retention: RetentionConfig | None = None
 
 
+class AdminConfig(BaseModel):
+    # Unset means the admin UI is disabled entirely (routes return 404) rather
+    # than silently exposed with no password on a LAN device.
+    password: str | None = None
+
+
 class AppConfig(BaseModel):
     poll_interval_minutes: int = 20
     base_url: str
     data_dir: Path = Path("/data")
     channels: list[ChannelConfig] = Field(default_factory=list)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
+    admin: AdminConfig = Field(default_factory=AdminConfig)
 
     @model_validator(mode="after")
     def check_unique_channels(self) -> "AppConfig":

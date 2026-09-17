@@ -3,16 +3,20 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from podmachine.config import load_config
 from podmachine.db import connect, init_db
 from podmachine.feed import build_channel_feed
 from podmachine.poller import poll_all_channels
 from podmachine.processor import process_pending_videos
+from podmachine.queries import channel_status_rows
 from podmachine.scheduler import run_cycle, start_scheduler
+from podmachine.web.routes import router as admin_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,6 +42,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="podmachine", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "web" / "static"), name="static")
+app.include_router(admin_router)
 
 
 @app.get("/healthz")
@@ -55,33 +61,7 @@ def list_channels() -> dict:
     config = app.state.config
     conn = connect(app.state.db_path)
     try:
-        channels = []
-        for channel in config.channels:
-            state_row = conn.execute(
-                "SELECT baseline_established, last_polled_at, consecutive_poll_failures, "
-                "backed_off_until, last_poll_error, avatar_path FROM channel_state WHERE slug = ?",
-                (channel.slug,),
-            ).fetchone()
-            counts_rows = conn.execute(
-                "SELECT status, COUNT(*) AS n FROM videos WHERE channel_slug = ? GROUP BY status",
-                (channel.slug,),
-            ).fetchall()
-            counts = {row["status"]: row["n"] for row in counts_rows}
-            channels.append(
-                {
-                    "slug": channel.slug,
-                    "name": channel.name,
-                    "id": channel.id,
-                    "baseline_established": bool(state_row["baseline_established"]) if state_row else False,
-                    "last_polled_at": state_row["last_polled_at"] if state_row else None,
-                    "consecutive_poll_failures": state_row["consecutive_poll_failures"] if state_row else 0,
-                    "backed_off_until": state_row["backed_off_until"] if state_row else None,
-                    "last_poll_error": state_row["last_poll_error"] if state_row else None,
-                    "has_avatar": bool(state_row["avatar_path"]) if state_row else False,
-                    "video_counts": counts,
-                }
-            )
-        return {"channels": channels}
+        return {"channels": channel_status_rows(conn, config.channels)}
     finally:
         conn.close()
 

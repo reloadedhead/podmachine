@@ -5,6 +5,12 @@ poll_interval_minutes: 20
 # Must be an address your podcast apps can reach on your LAN.
 base_url: "http://podmachine.local:8000"
 
+# Optional: enables the admin web UI at /admin/ (channel status, episode
+# list, manual poll/process/run buttons), protected with HTTP Basic auth
+# using this shared password. Unset (the default) disables /admin/ entirely.
+# admin:
+#   password: "change-me"
+
 # Optional: automatically delete old episodes to save disk space. Off
 # by default. Only "count" is implemented today (keep the N most recent
 # episodes per channel, delete the rest) — see docs/retention.md for

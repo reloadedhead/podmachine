@@ -1,0 +1,39 @@
+<div id="channel-table" hx-get="/admin/partials/channels" hx-trigger="every 15s" hx-swap="outerHTML">
+  <table>
+    <thead>
+      <tr>
+        <th>Channel</th>
+        <th>Status</th>
+        <th>Last polled</th>
+        <th>Failures</th>
+        <th>Videos</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in channels %}
+      <tr>
+        <td><a href="/admin/channels/{{ c.slug }}">{{ c.name }}</a></td>
+        <td>
+          {% if c.backed_off_until %}
+            <span class="badge badge-error">backed off</span>
+          {% elif not c.baseline_established %}
+            <span class="badge badge-warn">establishing baseline</span>
+          {% else %}
+            <span class="badge badge-ok">ok</span>
+          {% endif %}
+        </td>
+        <td>{{ c.last_polled_at or "never" }}</td>
+        <td>
+          {{ c.consecutive_poll_failures }}
+          {%- if c.last_poll_error %} — <span class="err">{{ c.last_poll_error }}</span>{% endif %}
+        </td>
+        <td>
+          {% for status, n in c.video_counts.items() %}{{ status }}: {{ n }}{% if not loop.last %}, {% endif %}{% endfor %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No channels configured.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,28 @@
+<div id="video-table" hx-get="/admin/partials/channels/{{ channel.slug }}/videos" hx-trigger="every 15s" hx-swap="outerHTML">
+  <table>
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Published</th>
+        <th>Status</th>
+        <th>Discovered</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in videos %}
+      <tr>
+        <td>{{ v.title }}</td>
+        <td>{{ v.published_at }}</td>
+        <td>
+          <span class="badge {% if v.status == 'failed' %}badge-error{% elif v.status == 'done' %}badge-ok{% else %}badge-warn{% endif %}">{{ v.status }}</span>
+        </td>
+        <td>{{ v.discovered_at }}</td>
+        <td>{% if v.error_message %}<span class="err">{{ v.error_message }}</span>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No episodes yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

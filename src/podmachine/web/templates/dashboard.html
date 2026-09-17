@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}podmachine admin — channels{% endblock %}
+{% block content %}
+  <h1>Channels</h1>
+  <div class="actions">
+    <button hx-post="/admin/actions/poll" hx-target="#channel-table" hx-swap="outerHTML"
+            hx-indicator="#busy" hx-disabled-elt="this">Poll now</button>
+    <button hx-post="/admin/actions/process" hx-target="#channel-table" hx-swap="outerHTML"
+            hx-indicator="#busy" hx-disabled-elt="this">Process now</button>
+    <span id="busy" class="htmx-indicator">Working…</span>
+  </div>
+  {% include "partials/channel_table.html" %}
+{% endblock %}
