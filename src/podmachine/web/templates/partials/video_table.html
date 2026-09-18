@@ -35,11 +35,11 @@
           <div class="actions-row">
             {% if v.status == 'failed' %}
             <button class="btn" hx-post="/admin/channels/{{ channel.slug }}/videos/{{ v.video_id }}/retry"
-                    hx-target="#video-table" hx-swap="outerHTML">Retry</button>
+                    hx-target="#video-table" hx-swap="outerHTML" hx-disabled-elt="this">Retry</button>
             {% endif %}
             {% if v.status in ('baseline', 'skipped_short', 'deleted') %}
             <button class="btn" hx-post="/admin/channels/{{ channel.slug }}/videos/{{ v.video_id }}/queue"
-                    hx-target="#video-table" hx-swap="outerHTML">Queue</button>
+                    hx-target="#video-table" hx-swap="outerHTML" hx-disabled-elt="this">Queue</button>
             {% endif %}
             {% if v.status != 'deleted' %}
             <button class="btn btn-danger" hx-post="/admin/channels/{{ channel.slug }}/videos/{{ v.video_id }}/delete"

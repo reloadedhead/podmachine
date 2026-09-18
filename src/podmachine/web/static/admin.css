@@ -169,6 +169,40 @@ h2 {
 .table-card { padding: 0; overflow-x: auto; }
 .table-card > .err { margin: 1rem 1.25rem 0; }
 
+.dialog {
+  border: none;
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  width: min(420px, calc(100vw - 2.5rem));
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+}
+
+.dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+
+.dialog h2 { margin: 0 0 1rem; }
+
+.dialog label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.9rem;
+}
+
+.dialog label input {
+  display: block;
+  width: 100%;
+  margin-top: 0.3rem;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
 /* Buttons */
 button, .btn {
   font: inherit;
@@ -285,14 +319,14 @@ code {
 }
 
 /* Forms */
-.add-channel-form, .retention-form {
+.retention-form {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.6rem;
 }
 
-.add-channel-form input, .retention-form input, .retention-form select {
+.retention-form input, .retention-form select, .dialog input {
   font: inherit;
   font-size: 0.9rem;
   padding: 0.45rem 0.65rem;
@@ -303,9 +337,7 @@ code {
   transition: border-color 120ms ease;
 }
 
-.add-channel-form input { flex: 1 1 160px; }
-
-.add-channel-form input:focus, .retention-form input:focus, .retention-form select:focus {
+.retention-form input:focus, .retention-form select:focus, .dialog input:focus {
   outline: none;
   border-color: var(--accent);
 }
@@ -374,7 +406,7 @@ code {
 
   .empty-row td { padding: 1.25rem 0; }
 
-  .add-channel-form, .retention-form { flex-direction: column; align-items: stretch; }
-  .add-channel-form input, .retention-form input, .retention-form select { width: 100%; }
-  .add-channel-form button, .retention-form button { width: 100%; }
+  .retention-form { flex-direction: column; align-items: stretch; }
+  .retention-form input, .retention-form select { width: 100%; }
+  .retention-form button { width: 100%; }
 }

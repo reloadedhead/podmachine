@@ -99,10 +99,17 @@ def channel_detail(request: Request, slug: str) -> HTMLResponse:
         default_retention = get_default_retention(conn)
     finally:
         conn.close()
+    feed_url = f"{request.app.state.config.base_url}/feeds/{channel.slug}.xml"
     return templates.TemplateResponse(
         request,
         "channel_detail.html",
-        {"channel": channel, "videos": videos, "default_retention": default_retention, "error": None},
+        {
+            "channel": channel,
+            "videos": videos,
+            "default_retention": default_retention,
+            "feed_url": feed_url,
+            "error": None,
+        },
     )
 
 
@@ -144,16 +151,22 @@ def action_add_channel(
             add_channel(conn, ChannelConfig(id=channel_id, name=resolved_name, slug=resolved_slug))
         except (DuplicateChannelError, ValidationError, ValueError) as exc:
             error = str(exc)
+
+        if error:
+            # Errors are shown inside the "Add channel" dialog itself (it stays
+            # open on failure), not the channel table underneath it — retarget
+            # this response there instead of the form's default hx-target.
+            response = templates.TemplateResponse(
+                request, "partials/add_channel_error.html", {"error": error}, status_code=400
+            )
+            response.headers["HX-Retarget"] = "#add-channel-error"
+            response.headers["HX-Reswap"] = "innerHTML"
+            return response
+
         channels = channel_status_rows(conn, list_channels(conn))
     finally:
         conn.close()
-    status_code = 400 if error else 200
-    return templates.TemplateResponse(
-        request,
-        "partials/channel_table.html",
-        {"channels": channels, "error": error},
-        status_code=status_code,
-    )
+    return templates.TemplateResponse(request, "partials/channel_table.html", {"channels": channels, "error": None})
 
 
 @router.post("/settings/retention", response_class=HTMLResponse)
@@ -241,6 +254,16 @@ def action_delete_video(request: Request, slug: str, video_id: str) -> HTMLRespo
     return templates.TemplateResponse(request, "partials/video_table.html", {"channel": channel, "videos": videos})
 
 
+def _process_pending_now(conn: sqlite3.Connection, config) -> None:
+    """Queue/Retry set a video's status to 'pending', but that alone just
+    waits for the next scheduled cycle (up to poll_interval_minutes away).
+    Process pending videos immediately instead, same as the "Process now"
+    button, so the queued video actually starts downloading right away."""
+    media_dir = config.data_dir / "media"
+    channel_names = {c.slug: c.name for c in list_channels(conn)}
+    process_pending_videos(conn, media_dir, channel_names)
+
+
 @router.post("/channels/{slug}/videos/{video_id}/retry", response_class=HTMLResponse)
 def action_retry_video(request: Request, slug: str, video_id: str) -> HTMLResponse:
     conn = connect(request.app.state.db_path)
@@ -248,6 +271,7 @@ def action_retry_video(request: Request, slug: str, video_id: str) -> HTMLRespon
         channel = _find_channel(conn, slug)
         _find_video(conn, slug, video_id)
         retry_video(conn, video_id)
+        _process_pending_now(conn, request.app.state.config)
         videos = channel_videos(conn, slug)
     finally:
         conn.close()
@@ -263,6 +287,7 @@ def action_queue_video(request: Request, slug: str, video_id: str) -> HTMLRespon
         if row["status"] not in QUEUEABLE_STATUSES:
             raise HTTPException(status_code=400, detail=f"Video is {row['status']!r}, not queueable")
         retry_video(conn, video_id)
+        _process_pending_now(conn, request.app.state.config)
         videos = channel_videos(conn, slug)
     finally:
         conn.close()
@@ -283,14 +308,10 @@ def action_poll(request: Request) -> HTMLResponse:
 
 @router.post("/actions/process", response_class=HTMLResponse)
 def action_process(request: Request) -> HTMLResponse:
-    config = request.app.state.config
     conn = connect(request.app.state.db_path)
     try:
-        channels = list_channels(conn)
-        media_dir = config.data_dir / "media"
-        channel_names = {c.slug: c.name for c in channels}
-        process_pending_videos(conn, media_dir, channel_names)
-        rows = channel_status_rows(conn, channels)
+        _process_pending_now(conn, request.app.state.config)
+        rows = channel_status_rows(conn, list_channels(conn))
     finally:
         conn.close()
     return templates.TemplateResponse(request, "partials/channel_table.html", {"channels": rows, "error": None})

@@ -78,6 +78,7 @@ def test_channel_detail_renders(client):
     assert response.status_code == 200
     assert "Example Channel" in response.text
     assert "No episodes yet" in response.text
+    assert "http://podmachine.local:8000/feeds/example-channel.xml" in response.text
 
 
 def test_action_poll_triggers_poll_and_returns_updated_fragment(client, monkeypatch):
@@ -87,6 +88,18 @@ def test_action_poll_triggers_poll_and_returns_updated_fragment(client, monkeypa
         lambda conn, channels: calls.append(channels) or [],
     )
     response = client.post("/admin/actions/poll", auth=("admin", "secret123"))
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert 'id="channel-table"' in response.text
+
+
+def test_action_process_triggers_processing_and_returns_updated_fragment(client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "podmachine.web.routes.process_pending_videos",
+        lambda conn, media_dir, channel_names: calls.append(channel_names) or [],
+    )
+    response = client.post("/admin/actions/process", auth=("admin", "secret123"))
     assert response.status_code == 200
     assert len(calls) == 1
     assert 'id="channel-table"' in response.text
@@ -115,13 +128,22 @@ def _insert_video(client, video_id, status, file_path=None, error_message=None):
     conn.close()
 
 
-def test_action_retry_requeues_failed_video(client):
+def test_action_retry_requeues_failed_video(client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "podmachine.web.routes.process_pending_videos",
+        lambda conn, media_dir, channel_names: calls.append(channel_names) or [],
+    )
     _insert_video(client, "vid1", "failed", error_message="boom")
     response = client.post(
         "/admin/channels/example-channel/videos/vid1/retry", auth=("admin", "secret123")
     )
     assert response.status_code == 200
     assert 'id="video-table"' in response.text
+    # Retry doesn't just flip the status and wait for the next scheduled
+    # cycle (which could be poll_interval_minutes away) — it processes
+    # pending videos immediately, same as the "Process now" button.
+    assert len(calls) == 1
 
     conn = connect(client.app.state.db_path)
     row = conn.execute("SELECT status, error_message FROM videos WHERE video_id = ?", ("vid1",)).fetchone()
@@ -156,13 +178,20 @@ def test_action_retry_unknown_video_404s(client):
     assert response.status_code == 404
 
 
-def test_action_queue_baseline_video(client):
+def test_action_queue_baseline_video(client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "podmachine.web.routes.process_pending_videos",
+        lambda conn, media_dir, channel_names: calls.append(channel_names) or [],
+    )
     _insert_video(client, "vid3", "baseline")
     response = client.post(
         "/admin/channels/example-channel/videos/vid3/queue", auth=("admin", "secret123")
     )
     assert response.status_code == 200
     assert 'id="video-table"' in response.text
+    # Queue processes immediately too, not just on the next scheduled cycle.
+    assert len(calls) == 1
 
     conn = connect(client.app.state.db_path)
     row = conn.execute("SELECT status FROM videos WHERE video_id = ?", ("vid3",)).fetchone()
@@ -170,7 +199,11 @@ def test_action_queue_baseline_video(client):
     assert row["status"] == "pending"
 
 
-def test_action_queue_skipped_short_video(client):
+def test_action_queue_skipped_short_video(client, monkeypatch):
+    monkeypatch.setattr(
+        "podmachine.web.routes.process_pending_videos",
+        lambda conn, media_dir, channel_names: [],
+    )
     _insert_video(client, "vid4", "skipped_short")
     response = client.post(
         "/admin/channels/example-channel/videos/vid4/queue", auth=("admin", "secret123")
@@ -183,7 +216,11 @@ def test_action_queue_skipped_short_video(client):
     assert row["status"] == "pending"
 
 
-def test_action_queue_deleted_video(client):
+def test_action_queue_deleted_video(client, monkeypatch):
+    monkeypatch.setattr(
+        "podmachine.web.routes.process_pending_videos",
+        lambda conn, media_dir, channel_names: [],
+    )
     _insert_video(client, "vid5", "deleted")
     response = client.post(
         "/admin/channels/example-channel/videos/vid5/queue", auth=("admin", "secret123")
@@ -240,6 +277,8 @@ def test_action_add_channel_rejects_duplicate_slug(client):
     )
     assert response.status_code == 400
     assert "already exists" in response.text
+    assert response.headers["HX-Retarget"] == "#add-channel-error"
+    assert response.headers["HX-Reswap"] == "innerHTML"
 
 
 def test_action_add_channel_autofetches_name_and_slug(client, monkeypatch):

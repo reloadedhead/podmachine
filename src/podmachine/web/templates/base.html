@@ -19,6 +19,17 @@
     {% block content %}{% endblock %}
   </main>
   <script>
+    // htmx doesn't swap 4xx responses by default (it treats them as errors
+    // to leave alone); our own routes deliberately return 400 with a small
+    // HTML fragment of validation feedback (e.g. the add-channel dialog's
+    // error slot) that's meant to be swapped in like any other response.
+    document.body.addEventListener("htmx:beforeSwap", function (e) {
+      if (e.detail.xhr.status === 400) {
+        e.detail.shouldSwap = true;
+        e.detail.isError = false;
+      }
+    });
+
     // Server renders UTC ISO timestamps (no client timezone data at render
     // time); localize them here instead, and re-run after every htmx swap
     // since polling/action responses bring in fresh <time> elements.
@@ -68,6 +79,54 @@
     }
     document.addEventListener("DOMContentLoaded", initRetentionForms);
     document.body.addEventListener("htmx:afterSettle", initRetentionForms);
+
+    // "Add channel" dialog: close and reset it on a successful submit
+    // (channel_table.html has already picked up the new row via its own
+    // hx-target); on failure, leave it open — the error landed in
+    // #add-channel-error via the response's HX-Retarget header.
+    document.body.addEventListener("htmx:afterRequest", function (e) {
+      var status = e.detail.xhr && e.detail.xhr.status;
+      if (e.target && e.target.id === "add-channel-form" && status >= 200 && status < 300) {
+        var dialog = document.getElementById("add-channel-dialog");
+        if (dialog) dialog.close();
+        e.target.reset();
+        var errorEl = document.getElementById("add-channel-error");
+        if (errorEl) errorEl.innerHTML = "";
+      }
+    });
+
+    // Copy-to-clipboard for the feed URL. navigator.clipboard needs a
+    // secure context (HTTPS or localhost) — this app is typically reached
+    // over plain HTTP on the LAN (e.g. http://podmachine.local:8000), so
+    // fall back to the old execCommand("copy") trick via a hidden textarea.
+    function copyToClipboard(button) {
+      var text = button.dataset.copyText;
+      var original = button.textContent;
+      function showCopied() {
+        button.textContent = "Copied!";
+        setTimeout(function () { button.textContent = original; }, 1500);
+      }
+      function legacyCopy() {
+        var textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand("copy");
+          showCopied();
+        } catch (err) {
+          // Clipboard access unavailable in this browser; leave the button as-is.
+        }
+        document.body.removeChild(textarea);
+      }
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(showCopied).catch(legacyCopy);
+        return;
+      }
+      legacyCopy();
+    }
   </script>
 </body>
 </html>

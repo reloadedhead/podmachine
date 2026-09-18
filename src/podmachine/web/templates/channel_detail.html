@@ -7,6 +7,7 @@
       <img class="avatar avatar-lg" src="/artwork/{{ channel.slug }}.jpg" alt="" onerror="this.remove()">
       <h1>{{ channel.name }}</h1>
     </div>
+    <button type="button" class="btn" data-copy-text="{{ feed_url }}" onclick="copyToClipboard(this)">Copy podcast URL</button>
   </div>
   {% include "partials/channel_meta.html" %}
   {% include "partials/video_table.html" %}

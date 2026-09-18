@@ -9,17 +9,29 @@
       <button class="btn" hx-post="/admin/actions/process" hx-target="#channel-table" hx-swap="outerHTML"
               hx-indicator="#busy" hx-disabled-elt="this">Process now</button>
       <span id="busy" class="htmx-indicator">Working…</span>
+      <button type="button" class="btn btn-primary" onclick="document.getElementById('add-channel-dialog').showModal()">Add channel</button>
     </div>
   </div>
-  <section class="card">
-    <h2>Add channel</h2>
-    <form hx-post="/admin/channels" hx-target="#channel-table" hx-swap="outerHTML" class="add-channel-form">
-      <input type="text" name="channel_id" placeholder="YouTube channel ID" required>
-      <input type="text" name="name" placeholder="Display name (auto-fetched if blank)">
-      <input type="text" name="slug" placeholder="slug (auto-generated if blank)">
-      <button type="submit" class="btn btn-primary">Add</button>
-    </form>
-  </section>
 
   {% include "partials/channel_table.html" %}
+
+  <dialog id="add-channel-dialog" class="dialog">
+    <h2>Add channel</h2>
+    <div id="add-channel-error"></div>
+    <form hx-post="/admin/channels" hx-target="#channel-table" hx-swap="outerHTML" id="add-channel-form">
+      <label>YouTube channel ID
+        <input type="text" name="channel_id" placeholder="UC..." required>
+      </label>
+      <label>Display name
+        <input type="text" name="name" placeholder="auto-fetched if blank">
+      </label>
+      <label>Slug
+        <input type="text" name="slug" placeholder="auto-generated if blank">
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="btn" onclick="document.getElementById('add-channel-dialog').close()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add</button>
+      </div>
+    </form>
+  </dialog>
 {% endblock %}
