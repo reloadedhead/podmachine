@@ -42,12 +42,19 @@ def _find_channel(conn: sqlite3.Connection, slug: str) -> ChannelConfig:
 
 def _find_video(conn: sqlite3.Connection, slug: str, video_id: str) -> sqlite3.Row:
     row = conn.execute(
-        "SELECT video_id, file_path FROM videos WHERE video_id = ? AND channel_slug = ?",
+        "SELECT video_id, status, file_path FROM videos WHERE video_id = ? AND channel_slug = ?",
         (video_id, slug),
     ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="Unknown video")
     return row
+
+
+# Statuses eligible for the "Queue" action: never downloaded (baseline,
+# skipped_short) or previously deleted. Not pending/downloading (already
+# queued) or done (already downloaded) — those aren't offered the button.
+# 'failed' has its own dedicated Retry action instead.
+QUEUEABLE_STATUSES = {"baseline", "skipped_short", "deleted"}
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -197,6 +204,21 @@ def action_retry_video(request: Request, slug: str, video_id: str) -> HTMLRespon
     try:
         channel = _find_channel(conn, slug)
         _find_video(conn, slug, video_id)
+        retry_video(conn, video_id)
+        videos = channel_videos(conn, slug)
+    finally:
+        conn.close()
+    return templates.TemplateResponse(request, "partials/video_table.html", {"channel": channel, "videos": videos})
+
+
+@router.post("/channels/{slug}/videos/{video_id}/queue", response_class=HTMLResponse)
+def action_queue_video(request: Request, slug: str, video_id: str) -> HTMLResponse:
+    conn = connect(request.app.state.db_path)
+    try:
+        channel = _find_channel(conn, slug)
+        row = _find_video(conn, slug, video_id)
+        if row["status"] not in QUEUEABLE_STATUSES:
+            raise HTTPException(status_code=400, detail=f"Video is {row['status']!r}, not queueable")
         retry_video(conn, video_id)
         videos = channel_videos(conn, slug)
     finally:

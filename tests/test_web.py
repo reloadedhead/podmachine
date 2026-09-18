@@ -156,6 +156,69 @@ def test_action_retry_unknown_video_404s(client):
     assert response.status_code == 404
 
 
+def test_action_queue_baseline_video(client):
+    _insert_video(client, "vid3", "baseline")
+    response = client.post(
+        "/admin/channels/example-channel/videos/vid3/queue", auth=("admin", "secret123")
+    )
+    assert response.status_code == 200
+    assert 'id="video-table"' in response.text
+
+    conn = connect(client.app.state.db_path)
+    row = conn.execute("SELECT status FROM videos WHERE video_id = ?", ("vid3",)).fetchone()
+    conn.close()
+    assert row["status"] == "pending"
+
+
+def test_action_queue_skipped_short_video(client):
+    _insert_video(client, "vid4", "skipped_short")
+    response = client.post(
+        "/admin/channels/example-channel/videos/vid4/queue", auth=("admin", "secret123")
+    )
+    assert response.status_code == 200
+
+    conn = connect(client.app.state.db_path)
+    row = conn.execute("SELECT status FROM videos WHERE video_id = ?", ("vid4",)).fetchone()
+    conn.close()
+    assert row["status"] == "pending"
+
+
+def test_action_queue_deleted_video(client):
+    _insert_video(client, "vid5", "deleted")
+    response = client.post(
+        "/admin/channels/example-channel/videos/vid5/queue", auth=("admin", "secret123")
+    )
+    assert response.status_code == 200
+
+    conn = connect(client.app.state.db_path)
+    row = conn.execute("SELECT status FROM videos WHERE video_id = ?", ("vid5",)).fetchone()
+    conn.close()
+    assert row["status"] == "pending"
+
+
+def test_action_queue_rejects_already_pending_video(client):
+    _insert_video(client, "vid6", "pending")
+    response = client.post(
+        "/admin/channels/example-channel/videos/vid6/queue", auth=("admin", "secret123")
+    )
+    assert response.status_code == 400
+
+
+def test_action_queue_rejects_done_video(client):
+    _insert_video(client, "vid7", "done")
+    response = client.post(
+        "/admin/channels/example-channel/videos/vid7/queue", auth=("admin", "secret123")
+    )
+    assert response.status_code == 400
+
+
+def test_action_queue_unknown_video_404s(client):
+    response = client.post(
+        "/admin/channels/example-channel/videos/does-not-exist/queue", auth=("admin", "secret123")
+    )
+    assert response.status_code == 404
+
+
 def test_action_add_channel(client):
     response = client.post(
         "/admin/channels",

@@ -149,9 +149,10 @@ def _process_one(
 
 
 def retry_video(conn: sqlite3.Connection, video_id: str) -> None:
-    """Manually requeue one 'failed' episode, same transition requeue.py
-    applies automatically on its long-range schedule. The next process run
-    (button or scheduled cycle) picks it back up."""
+    """Manually (re)queue one episode for download — a 'failed' retry (same
+    transition requeue.py applies automatically on its long-range schedule),
+    or a 'baseline'/'skipped_short'/'deleted' episode queued for the first
+    time. The next process run (button or scheduled cycle) picks it up."""
     conn.execute(
         "UPDATE videos SET status = 'pending', error_message = NULL WHERE video_id = ?",
         (video_id,),

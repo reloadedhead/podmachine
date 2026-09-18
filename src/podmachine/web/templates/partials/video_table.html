@@ -25,6 +25,10 @@
           <button hx-post="/admin/channels/{{ channel.slug }}/videos/{{ v.video_id }}/retry"
                   hx-target="#video-table" hx-swap="outerHTML">Retry</button>
           {% endif %}
+          {% if v.status in ('baseline', 'skipped_short', 'deleted') %}
+          <button hx-post="/admin/channels/{{ channel.slug }}/videos/{{ v.video_id }}/queue"
+                  hx-target="#video-table" hx-swap="outerHTML">Queue</button>
+          {% endif %}
           {% if v.status != 'deleted' %}
           <button hx-post="/admin/channels/{{ channel.slug }}/videos/{{ v.video_id }}/delete"
                   hx-target="#video-table" hx-swap="outerHTML"
