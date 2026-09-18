@@ -7,6 +7,7 @@ import podmachine.main
 import pytest
 from fastapi.testclient import TestClient
 
+from podmachine.db import connect
 from podmachine.main import app
 
 
@@ -100,3 +101,179 @@ def test_json_channels_endpoint_still_unauthenticated(client):
     response = client.get("/channels")
     assert response.status_code == 200
     assert response.json()["channels"][0]["slug"] == "example-channel"
+
+
+def _insert_video(client, video_id, status, file_path=None, error_message=None):
+    conn = connect(client.app.state.db_path)
+    conn.execute(
+        "INSERT INTO videos (video_id, channel_slug, title, published_at, status, discovered_at, "
+        "file_path, error_message) VALUES (?, 'example-channel', 'T', '2024-01-01T00:00:00+00:00', "
+        "?, '2024-01-01T00:00:00+00:00', ?, ?)",
+        (video_id, status, file_path, error_message),
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_action_retry_requeues_failed_video(client):
+    _insert_video(client, "vid1", "failed", error_message="boom")
+    response = client.post(
+        "/admin/channels/example-channel/videos/vid1/retry", auth=("admin", "secret123")
+    )
+    assert response.status_code == 200
+    assert 'id="video-table"' in response.text
+
+    conn = connect(client.app.state.db_path)
+    row = conn.execute("SELECT status, error_message FROM videos WHERE video_id = ?", ("vid1",)).fetchone()
+    conn.close()
+    assert row["status"] == "pending"
+    assert row["error_message"] is None
+
+
+def test_action_delete_tombstones_video_and_removes_file(client, tmp_path):
+    media_file = tmp_path / "vid2.mp3"
+    media_file.write_bytes(b"audio")
+    _insert_video(client, "vid2", "done", file_path=str(media_file))
+
+    response = client.post(
+        "/admin/channels/example-channel/videos/vid2/delete", auth=("admin", "secret123")
+    )
+    assert response.status_code == 200
+    assert 'id="video-table"' in response.text
+    assert not media_file.exists()
+
+    conn = connect(client.app.state.db_path)
+    row = conn.execute("SELECT status, file_path FROM videos WHERE video_id = ?", ("vid2",)).fetchone()
+    conn.close()
+    assert row["status"] == "deleted"
+    assert row["file_path"] is None
+
+
+def test_action_retry_unknown_video_404s(client):
+    response = client.post(
+        "/admin/channels/example-channel/videos/does-not-exist/retry", auth=("admin", "secret123")
+    )
+    assert response.status_code == 404
+
+
+def test_action_add_channel(client):
+    response = client.post(
+        "/admin/channels",
+        data={"channel_id": "UC2", "name": "New Channel", "slug": "new-channel"},
+        auth=("admin", "secret123"),
+    )
+    assert response.status_code == 200
+    assert "New Channel" in response.text
+
+    detail = client.get("/admin/channels/new-channel", auth=("admin", "secret123"))
+    assert detail.status_code == 200
+
+
+def test_action_add_channel_rejects_duplicate_slug(client):
+    response = client.post(
+        "/admin/channels",
+        data={"channel_id": "UC9", "name": "Dup", "slug": "example-channel"},
+        auth=("admin", "secret123"),
+    )
+    assert response.status_code == 400
+    assert "already exists" in response.text
+
+
+def test_action_add_channel_autofetches_name_and_slug(client, monkeypatch):
+    monkeypatch.setattr("podmachine.web.routes.fetch_channel_name", lambda channel_id: "Fetched Name")
+    response = client.post(
+        "/admin/channels", data={"channel_id": "UC2"}, auth=("admin", "secret123")
+    )
+    assert response.status_code == 200
+    assert "Fetched Name" in response.text
+
+    channel = client.get("/admin/channels/fetched-name", auth=("admin", "secret123"))
+    assert channel.status_code == 200
+
+
+def test_action_add_channel_dedupes_slug_collision(client, monkeypatch):
+    monkeypatch.setattr("podmachine.web.routes.fetch_channel_name", lambda channel_id: "Example Channel")
+    response = client.post(
+        "/admin/channels", data={"channel_id": "UC2"}, auth=("admin", "secret123")
+    )
+    assert response.status_code == 200
+
+    channel = client.get("/admin/channels/example-channel-2", auth=("admin", "secret123"))
+    assert channel.status_code == 200
+    assert "Example Channel" in channel.text
+
+
+def test_action_add_channel_fetch_failure_shows_error(client, monkeypatch):
+    import requests
+
+    def raise_error(channel_id):
+        raise requests.RequestException("network down")
+
+    monkeypatch.setattr("podmachine.web.routes.fetch_channel_name", raise_error)
+    response = client.post(
+        "/admin/channels", data={"channel_id": "UC2"}, auth=("admin", "secret123")
+    )
+    assert response.status_code == 400
+    assert "fetch a channel name" in response.text
+
+
+def test_action_add_channel_manual_name_and_slug_skip_fetch(client, monkeypatch):
+    def unexpected_fetch(channel_id):
+        raise AssertionError("fetch_channel_name should not be called when name is provided")
+
+    monkeypatch.setattr("podmachine.web.routes.fetch_channel_name", unexpected_fetch)
+    response = client.post(
+        "/admin/channels",
+        data={"channel_id": "UC2", "name": "Manual Name", "slug": "manual-slug"},
+        auth=("admin", "secret123"),
+    )
+    assert response.status_code == 200
+    assert "Manual Name" in response.text
+
+
+def test_action_delete_channel_removes_it(client):
+    response = client.post("/admin/channels/example-channel/delete", auth=("admin", "secret123"))
+    assert response.status_code == 200
+    assert "Example Channel" not in response.text
+
+    detail = client.get("/admin/channels/example-channel", auth=("admin", "secret123"))
+    assert detail.status_code == 404
+
+
+def test_action_delete_channel_unknown_slug_404s(client):
+    response = client.post("/admin/channels/does-not-exist/delete", auth=("admin", "secret123"))
+    assert response.status_code == 404
+
+
+def test_action_update_retention(client):
+    response = client.post(
+        "/admin/channels/example-channel/retention",
+        data={"strategy": "count", "keep_latest": "3"},
+        auth=("admin", "secret123"),
+    )
+    assert response.status_code == 200
+    assert 'id="channel-meta"' in response.text
+
+    conn = connect(client.app.state.db_path)
+    row = conn.execute("SELECT retention_json FROM channels WHERE slug = 'example-channel'").fetchone()
+    conn.close()
+    assert '"strategy":"count"' in row["retention_json"]
+
+
+def test_action_update_retention_clears_with_blank_strategy(client):
+    client.post(
+        "/admin/channels/example-channel/retention",
+        data={"strategy": "count", "keep_latest": "3"},
+        auth=("admin", "secret123"),
+    )
+    response = client.post(
+        "/admin/channels/example-channel/retention",
+        data={"strategy": "", "keep_latest": ""},
+        auth=("admin", "secret123"),
+    )
+    assert response.status_code == 200
+
+    conn = connect(client.app.state.db_path)
+    row = conn.execute("SELECT retention_json FROM channels WHERE slug = 'example-channel'").fetchone()
+    conn.close()
+    assert row["retention_json"] is None

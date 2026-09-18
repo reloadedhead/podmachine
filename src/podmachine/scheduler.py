@@ -9,6 +9,7 @@ from pathlib import Path
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from podmachine.artwork import ensure_channel_artwork
+from podmachine.channels import list_channels
 from podmachine.config import AppConfig
 from podmachine.db import connect
 from podmachine.downloader import download_audio
@@ -38,10 +39,11 @@ def run_cycle(
 ) -> dict:
     conn = connect(db_path)
     try:
-        poll_results = poll_all_channels(conn, config.channels, fetch=fetch_fn, sleep_fn=sleep_fn)
+        channels = list_channels(conn)
+        poll_results = poll_all_channels(conn, channels, fetch=fetch_fn, sleep_fn=sleep_fn)
 
         artwork_dir = config.data_dir / "artwork"
-        for channel in config.channels:
+        for channel in channels:
             ensure_channel_artwork(
                 conn, channel, artwork_dir, avatar_url_fn=avatar_url_fn, fetch_bytes_fn=avatar_bytes_fn
             )
@@ -49,13 +51,13 @@ def run_cycle(
         requeued_count = requeue_fn(conn)
 
         media_dir = config.data_dir / "media"
-        channel_names = {c.slug: c.name for c in config.channels}
+        channel_names = {c.slug: c.name for c in channels}
         process_results = process_pending_videos(
             conn, media_dir, channel_names, download_fn=download_fn, tag_fn=tag_fn, sleep_fn=sleep_fn
         )
 
         deleted_count = 0
-        for channel in config.channels:
+        for channel in channels:
             effective_retention = channel.retention or config.retention
             deleted_count += retention_fn(conn, channel, effective_retention, media_dir)
     finally:

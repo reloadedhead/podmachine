@@ -1,4 +1,5 @@
 <div id="channel-table" hx-get="/admin/partials/channels" hx-trigger="every 15s" hx-swap="outerHTML">
+  {% if error %}<p class="err">{{ error }}</p>{% endif %}
   <table>
     <thead>
       <tr>
@@ -7,6 +8,7 @@
         <th>Last polled</th>
         <th>Failures</th>
         <th>Videos</th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -30,9 +32,13 @@
         <td>
           {% for status, n in c.video_counts.items() %}{{ status }}: {{ n }}{% if not loop.last %}, {% endif %}{% endfor %}
         </td>
+        <td class="actions-cell">
+          <button hx-post="/admin/channels/{{ c.slug }}/delete" hx-target="#channel-table" hx-swap="outerHTML"
+                  hx-confirm="Remove {{ c.name }}? Its downloaded episodes are kept on disk but it stops being polled.">Remove</button>
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="5">No channels configured.</td></tr>
+      <tr><td colspan="6">No channels configured.</td></tr>
       {% endfor %}
     </tbody>
   </table>

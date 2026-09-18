@@ -7,6 +7,7 @@
         <th>Status</th>
         <th>Discovered</th>
         <th>Error</th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -19,9 +20,20 @@
         </td>
         <td>{{ v.discovered_at }}</td>
         <td>{% if v.error_message %}<span class="err">{{ v.error_message }}</span>{% endif %}</td>
+        <td class="actions-cell">
+          {% if v.status == 'failed' %}
+          <button hx-post="/admin/channels/{{ channel.slug }}/videos/{{ v.video_id }}/retry"
+                  hx-target="#video-table" hx-swap="outerHTML">Retry</button>
+          {% endif %}
+          {% if v.status != 'deleted' %}
+          <button hx-post="/admin/channels/{{ channel.slug }}/videos/{{ v.video_id }}/delete"
+                  hx-target="#video-table" hx-swap="outerHTML"
+                  hx-confirm="Delete this episode?">Delete</button>
+          {% endif %}
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="5">No episodes yet.</td></tr>
+      <tr><td colspan="6">No episodes yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -1,0 +1,18 @@
+<div id="channel-meta">
+  {% if error %}<p class="err">{{ error }}</p>{% endif %}
+  <p class="meta">slug: <code>{{ channel.slug }}</code> · YouTube channel ID: <code>{{ channel.id }}</code></p>
+  <form hx-post="/admin/channels/{{ channel.slug }}/retention" hx-target="#channel-meta" hx-swap="outerHTML" class="retention-form">
+    <label>Retention
+      <select name="strategy">
+        <option value="" {% if not channel.retention %}selected{% endif %}>use channel default</option>
+        <option value="none" {% if channel.retention and channel.retention.strategy == 'none' %}selected{% endif %}>none (keep all)</option>
+        <option value="count" {% if channel.retention and channel.retention.strategy == 'count' %}selected{% endif %}>count</option>
+      </select>
+    </label>
+    <label>Keep latest
+      <input type="number" name="keep_latest" min="1"
+             value="{{ channel.retention.keep_latest if channel.retention and channel.retention.keep_latest else '' }}">
+    </label>
+    <button type="submit">Save</button>
+  </form>
+</div>

@@ -19,6 +19,10 @@ base_url: "http://podmachine.local:8000"
 #   strategy: count
 #   keep_latest: 20
 
+# One-time bootstrap only: the first time podmachine starts with an empty
+# channel database, this list is imported and then ignored from then on.
+# Add/remove/edit channels afterwards from the admin UI (requires
+# admin.password above) instead of editing this file and restarting.
 channels: []
 # Example (retention can also be set per channel, overriding the
 # default above entirely rather than merging with it):

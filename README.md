@@ -18,7 +18,11 @@ Runs as a single Docker container, intended for a Raspberry Pi.
 
 2. Edit `config/config.yaml`: set `base_url` to an address your podcast
    apps can reach on your LAN (e.g. `http://podmachine.local:8000` or
-   `http://<pi-ip>:8000`), and list the channels you want to follow.
+   `http://<pi-ip>:8000`), and list the channels you want to follow. This
+   `channels:` list is only a one-time bootstrap — the first time podmachine
+   starts with an empty channel database, it imports this list and then
+   ignores it from then on. After that, add/remove channels from the admin
+   UI (see below) instead of editing config.yaml and restarting.
 
 3. Pull and run:
 
@@ -50,9 +54,9 @@ pull.
 |---|---|
 | `poll_interval_minutes` | How often to check channels for new uploads |
 | `base_url` | LAN-reachable base URL used in generated feed/enclosure links |
-| `channels[].id` | YouTube channel ID (`UC...`) |
-| `channels[].name` | Display name used as podcast/episode metadata |
-| `channels[].slug` | URL-safe identifier, used in feed and file paths |
+| `channels[].id` | YouTube channel ID (`UC...`) — bootstrap only, see above |
+| `channels[].name` | Display name used as podcast/episode metadata — bootstrap only |
+| `channels[].slug` | URL-safe identifier, used in feed and file paths — bootstrap only |
 | `retention.strategy` | `none` (default) or `count`. See "Episode retention" below |
 | `retention.keep_latest` | Episodes to keep per channel when `strategy: count` |
 | `channels[].retention` | Optional per-channel override — replaces the global `retention` block entirely for that channel, not merged |
@@ -77,7 +81,14 @@ pull.
 Set `admin.password` in `config.yaml` to enable a small dashboard at
 `/admin/` — per-channel status (last poll, failures, backoff, episode
 counts), a per-channel episode list with any error messages, and buttons
-to trigger a poll or a download/tag pass by hand. It's server-rendered
+to trigger a poll or a download/tag pass by hand. From the dashboard you
+can also add a channel (just a YouTube channel ID — its display name and
+slug are fetched/generated automatically, or you can set them by hand)
+and remove one;
+from a channel's detail page you can retry a failed episode, delete an
+episode (removes the file, keeps the tombstoned row so it isn't
+re-downloaded), and override its retention policy. All of this is stored
+in the database, not config.yaml — no restart needed. It's server-rendered
 HTML with [htmx](https://htmx.org) for the interactive bits (auto-refreshing
 tables, in-place button actions) — no JS framework, no build step; htmx
 itself is vendored into the image rather than loaded from a CDN. It's

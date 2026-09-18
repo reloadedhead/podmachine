@@ -1,4 +1,4 @@
-from podmachine.youtube import parse_feed, select_avatar_url
+from podmachine.youtube import parse_channel_name, parse_feed, select_avatar_url
 
 FEED_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
@@ -88,3 +88,7 @@ def test_select_avatar_url_returns_none_when_only_banners_present():
 
 def test_select_avatar_url_handles_empty_list():
     assert select_avatar_url([]) is None
+
+
+def test_parse_channel_name_reads_root_title_not_a_video_title():
+    assert parse_channel_name(FEED_XML) == "Test Channel"

@@ -42,11 +42,11 @@ def _apply_count_strategy(conn: sqlite3.Connection, channel: ChannelConfig, keep
 
     to_delete = rows[keep_latest:]
     for row in to_delete:
-        _delete_episode(conn, row["video_id"], row["file_path"])
+        delete_episode(conn, row["video_id"], row["file_path"])
     return len(to_delete)
 
 
-def _delete_episode(conn: sqlite3.Connection, video_id: str, file_path: str | None) -> None:
+def delete_episode(conn: sqlite3.Connection, video_id: str, file_path: str | None) -> None:
     # Tombstone, never remove the row: poll_channel's dedup check is
     # status-agnostic ("SELECT video_id FROM videos WHERE channel_slug = ?"),
     # so a removed row would look newly-discovered again on the next poll

@@ -61,6 +61,24 @@ def parse_feed(xml_text: str) -> list[VideoEntry]:
     return entries
 
 
+def fetch_channel_name(channel_id: str, timeout: float = 10.0) -> str | None:
+    """The channel's display name, from the same RSS feed used to poll for
+    videos — its root <title> is the channel name, not a video title."""
+    response = requests.get(
+        FEED_URL,
+        params={"channel_id": channel_id},
+        headers={"User-Agent": USER_AGENT},
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    return parse_channel_name(response.text)
+
+
+def parse_channel_name(xml_text: str) -> str | None:
+    root = ET.fromstring(xml_text)
+    return root.findtext("atom:title", namespaces=NAMESPACES)
+
+
 def fetch_channel_avatar_url(channel_id: str) -> str | None:
     # extract_flat + playlist_items='0' fetches only the channel's own
     # metadata (title, thumbnails) without enumerating any of its videos —

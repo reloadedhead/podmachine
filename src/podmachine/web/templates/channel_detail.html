@@ -3,6 +3,6 @@
 {% block content %}
   <p><a href="/admin/">&larr; back to channels</a></p>
   <h1>{{ channel.name }}</h1>
-  <p class="meta">slug: <code>{{ channel.slug }}</code> · YouTube channel ID: <code>{{ channel.id }}</code></p>
+  {% include "partials/channel_meta.html" %}
   {% include "partials/video_table.html" %}
 {% endblock %}

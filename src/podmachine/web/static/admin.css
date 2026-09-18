@@ -91,6 +91,37 @@ code {
 
 .err { color: var(--error); }
 
+.actions-cell button {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.5rem;
+  margin-right: 0.4rem;
+}
+
+.add-channel-form, .retention-form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.5rem 0 1.5rem;
+}
+
+.add-channel-form input, .retention-form input, .retention-form select {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+}
+
+.retention-form label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
 .htmx-indicator { opacity: 0; transition: opacity 150ms; }
 .htmx-request.htmx-indicator,
 .htmx-request .htmx-indicator { opacity: 1; }

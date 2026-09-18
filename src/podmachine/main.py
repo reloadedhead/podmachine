@@ -9,6 +9,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from podmachine.channels import get_channel as db_get_channel
+from podmachine.channels import import_channels_from_config_if_empty
+from podmachine.channels import list_channels as db_list_channels
 from podmachine.config import load_config
 from podmachine.db import connect, init_db
 from podmachine.feed import build_channel_feed
@@ -31,9 +34,15 @@ async def lifespan(app: FastAPI):
     app.state.config = config
     app.state.db_path = config.data_dir / "podmachine.sqlite3"
     init_db(app.state.db_path)
+    conn = connect(app.state.db_path)
+    try:
+        import_channels_from_config_if_empty(conn, config.channels)
+        tracked = len(db_list_channels(conn))
+    finally:
+        conn.close()
     logger.info(
-        "Loaded config: %d channel(s), polling every %d min",
-        len(config.channels),
+        "Loaded config: %d channel(s) tracked, polling every %d min",
+        tracked,
         config.poll_interval_minutes,
     )
     app.state.scheduler = start_scheduler(config, app.state.db_path)
@@ -49,29 +58,32 @@ app.include_router(admin_router)
 @app.get("/healthz")
 def healthz() -> dict:
     config = app.state.config
+    conn = connect(app.state.db_path)
+    try:
+        channel_count = len(db_list_channels(conn))
+    finally:
+        conn.close()
     return {
         "status": "ok",
-        "channels": len(config.channels),
+        "channels": channel_count,
         "poll_interval_minutes": config.poll_interval_minutes,
     }
 
 
 @app.get("/channels")
-def list_channels() -> dict:
-    config = app.state.config
+def list_channels_route() -> dict:
     conn = connect(app.state.db_path)
     try:
-        return {"channels": channel_status_rows(conn, config.channels)}
+        return {"channels": channel_status_rows(conn, db_list_channels(conn))}
     finally:
         conn.close()
 
 
 @app.post("/poll")
 def poll_now() -> dict:
-    config = app.state.config
     conn = connect(app.state.db_path)
     try:
-        results = poll_all_channels(conn, config.channels)
+        results = poll_all_channels(conn, db_list_channels(conn))
         return {"results": [asdict(r) for r in results]}
     finally:
         conn.close()
@@ -82,8 +94,9 @@ def process_now() -> dict:
     config = app.state.config
     conn = connect(app.state.db_path)
     try:
+        channels = db_list_channels(conn)
         media_dir = config.data_dir / "media"
-        channel_names = {c.slug: c.name for c in config.channels}
+        channel_names = {c.slug: c.name for c in channels}
         results = process_pending_videos(conn, media_dir, channel_names)
         return {"results": [asdict(r) for r in results]}
     finally:
@@ -98,12 +111,11 @@ def run_now() -> dict:
 @app.api_route("/feeds/{channel_slug}.xml", methods=["GET", "HEAD"])
 def get_feed(channel_slug: str) -> Response:
     config = app.state.config
-    channel = next((c for c in config.channels if c.slug == channel_slug), None)
-    if channel is None:
-        raise HTTPException(status_code=404, detail="Unknown channel")
-
     conn = connect(app.state.db_path)
     try:
+        channel = db_get_channel(conn, channel_slug)
+        if channel is None:
+            raise HTTPException(status_code=404, detail="Unknown channel")
         xml = build_channel_feed(conn, channel, config.base_url)
     finally:
         conn.close()

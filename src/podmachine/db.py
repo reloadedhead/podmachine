@@ -22,6 +22,17 @@ CREATE TABLE IF NOT EXISTS videos (
 );
 
 CREATE INDEX IF NOT EXISTS idx_videos_channel_slug ON videos(channel_slug);
+
+-- Source of truth for which channels are tracked, once bootstrapped (see
+-- podmachine.channels.import_channels_from_config_if_empty). config.yaml's
+-- `channels` list only seeds this table the first time it's empty; after
+-- that, edits go through the admin UI and land here, not in config.yaml.
+CREATE TABLE IF NOT EXISTS channels (
+    slug TEXT PRIMARY KEY,
+    id TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    retention_json TEXT
+);
 """
 
 # Additive columns layered onto `videos` after the initial release. Applied
