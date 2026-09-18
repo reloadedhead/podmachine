@@ -99,6 +99,11 @@ protected with HTTP Basic auth using the shared password (the rest of the
 API — feeds, media, JSON endpoints — stays unauthenticated, as it always
 has, since podcast apps need to reach it without a login prompt).
 
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="Channels dashboard" width="49%">
+  <img src="docs/screenshots/channel-detail.png" alt="Channel detail page" width="49%">
+</p>
+
 ## Episode retention
 
 Off by default — downloaded episodes accumulate forever unless you opt
