@@ -33,6 +33,14 @@ CREATE TABLE IF NOT EXISTS channels (
     name TEXT NOT NULL,
     retention_json TEXT
 );
+
+-- Small key/value store for app-wide settings managed from the admin UI
+-- (currently just the default retention policy) rather than config.yaml,
+-- same bootstrap-once-then-DB-is-source-of-truth pattern as `channels`.
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 # Additive columns layered onto `videos` after the initial release. Applied

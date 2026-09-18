@@ -57,9 +57,9 @@ pull.
 | `channels[].id` | YouTube channel ID (`UC...`) — bootstrap only, see above |
 | `channels[].name` | Display name used as podcast/episode metadata — bootstrap only |
 | `channels[].slug` | URL-safe identifier, used in feed and file paths — bootstrap only |
-| `retention.strategy` | `none` (default) or `count`. See "Episode retention" below |
-| `retention.keep_latest` | Episodes to keep per channel when `strategy: count` |
-| `channels[].retention` | Optional per-channel override — replaces the global `retention` block entirely for that channel, not merged |
+| `retention.strategy` | `none` (default) or `count` — bootstrap only, see above. See "Episode retention" below |
+| `retention.keep_latest` | Episodes to keep per channel when `strategy: count` — bootstrap only |
+| `channels[].retention` | Optional per-channel override, set from a channel's admin page — replaces the global retention policy entirely for that channel, not merged |
 | `admin.password` | Optional. Set to enable the admin web UI at `/admin/`, protected with this shared HTTP Basic auth password. Unset disables `/admin/` entirely (404) |
 
 ## Endpoints
@@ -87,8 +87,10 @@ slug are fetched/generated automatically, or you can set them by hand)
 and remove one;
 from a channel's detail page you can retry a failed episode, delete an
 episode (removes the file, keeps the tombstoned row so it isn't
-re-downloaded), and override its retention policy. All of this is stored
-in the database, not config.yaml — no restart needed. It's server-rendered
+re-downloaded), and override its retention policy. The dashboard also has
+a "Default retention" setting — the app-wide policy every channel falls
+back to unless it has its own override. All of this is stored in the
+database, not config.yaml — no restart needed. It's server-rendered
 HTML with [htmx](https://htmx.org) for the interactive bits (auto-refreshing
 tables, in-place button actions) — no JS framework, no build step; htmx
 itself is vendored into the image rather than loaded from a CDN. It's
@@ -99,7 +101,9 @@ has, since podcast apps need to reach it without a login prompt).
 ## Episode retention
 
 Off by default — downloaded episodes accumulate forever unless you opt
-in. To keep only the N most recent episodes per channel:
+in. Set the default policy from the admin dashboard's "Default retention"
+card (or bootstrap it via config.yaml's `retention:` block, see above) to
+keep only the N most recent episodes per channel:
 
 ```yaml
 retention:
@@ -107,7 +111,7 @@ retention:
   keep_latest: 20
 ```
 
-A channel can override this with its own `retention:` block (replaces
+A channel can override this from its own admin page (replaces
 the global one entirely, not merged). Deleting an episode removes the
 mp3 and marks it `deleted` in the database — the record itself is kept
 permanently so it's never mistaken for a new upload and redownloaded.

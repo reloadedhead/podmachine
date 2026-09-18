@@ -6,19 +6,21 @@ from podmachine.config import AppConfig, ChannelConfig, RetentionConfig
 from podmachine.db import connect, init_db
 from podmachine.downloader import DownloadResult
 from podmachine.scheduler import run_cycle, start_scheduler
+from podmachine.settings import import_default_retention_from_config_if_unset
 from podmachine.youtube import VideoEntry
 
 CHANNEL = ChannelConfig(id="UCtest0000000000000000", name="Test Channel", slug="test-channel")
 
 
-def setup_db(db_path, channels):
-    """init_db + seed the channels table, mirroring the app's startup
-    bootstrap (podmachine.channels.import_channels_from_config_if_empty),
-    since run_cycle now sources channels from the DB, not config.channels."""
+def setup_db(db_path, config):
+    """init_db + seed the channels table and default retention setting,
+    mirroring the app's startup bootstrap, since run_cycle now sources both
+    from the DB, not config.channels/config.retention."""
     init_db(db_path)
     conn = connect(db_path)
     try:
-        import_channels_from_config_if_empty(conn, channels)
+        import_channels_from_config_if_empty(conn, config.channels)
+        import_default_retention_from_config_if_unset(conn, config.retention)
     finally:
         conn.close()
 
@@ -52,7 +54,7 @@ def no_avatar(channel_id):
 def test_run_cycle_first_poll_establishes_baseline_without_downloading(tmp_path):
     config = make_config(tmp_path, [CHANNEL])
     db_path = tmp_path / "podmachine.sqlite3"
-    setup_db(db_path, config.channels)
+    setup_db(db_path, config)
 
     download_calls = []
 
@@ -78,7 +80,7 @@ def test_run_cycle_first_poll_establishes_baseline_without_downloading(tmp_path)
 def test_run_cycle_downloads_newly_discovered_video_in_same_cycle(tmp_path):
     config = make_config(tmp_path, [CHANNEL])
     db_path = tmp_path / "podmachine.sqlite3"
-    setup_db(db_path, config.channels)
+    setup_db(db_path, config)
 
     baseline_catalog = [make_entry("old1")]
     run_cycle(
@@ -112,7 +114,7 @@ def test_run_cycle_downloads_newly_discovered_video_in_same_cycle(tmp_path):
 def test_run_cycle_fetches_and_caches_channel_avatar(tmp_path):
     config = make_config(tmp_path, [CHANNEL])
     db_path = tmp_path / "podmachine.sqlite3"
-    setup_db(db_path, config.channels)
+    setup_db(db_path, config)
 
     run_cycle(
         config,
@@ -138,7 +140,7 @@ def test_run_cycle_applies_configured_retention_policy(tmp_path):
         channels=[CHANNEL],
     )
     db_path = tmp_path / "podmachine.sqlite3"
-    setup_db(db_path, config.channels)
+    setup_db(db_path, config)
 
     baseline_catalog = [make_entry("old1", "2026-08-01T00:00:00+00:00")]
     run_cycle(config, db_path, fetch_fn=lambda channel_id: baseline_catalog, avatar_url_fn=no_avatar)
@@ -179,7 +181,7 @@ def test_run_cycle_applies_configured_retention_policy(tmp_path):
 def test_run_cycle_requeues_and_reprocesses_stale_failure_in_same_cycle(tmp_path):
     config = make_config(tmp_path, [CHANNEL])
     db_path = tmp_path / "podmachine.sqlite3"
-    setup_db(db_path, config.channels)
+    setup_db(db_path, config)
 
     # Establish baseline with no channel content, independent of the
     # failed video we're about to seed by hand.
@@ -221,7 +223,7 @@ def test_run_cycle_requeues_and_reprocesses_stale_failure_in_same_cycle(tmp_path
 def test_run_cycle_with_no_channels_returns_empty_results(tmp_path):
     config = make_config(tmp_path, [])
     db_path = tmp_path / "podmachine.sqlite3"
-    setup_db(db_path, config.channels)
+    setup_db(db_path, config)
 
     def unexpected_fetch(channel_id):
         raise AssertionError("fetch should not be called with zero channels")
@@ -234,7 +236,7 @@ def test_run_cycle_with_no_channels_returns_empty_results(tmp_path):
 def test_start_scheduler_registers_job_with_configured_interval(tmp_path):
     config = make_config(tmp_path, [])  # no channels: the immediate first run is a no-op, safe to let it fire for real
     db_path = tmp_path / "podmachine.sqlite3"
-    setup_db(db_path, config.channels)
+    setup_db(db_path, config)
     config = config.model_copy(update={"poll_interval_minutes": 5})
 
     scheduler = start_scheduler(config, db_path)

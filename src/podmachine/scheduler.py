@@ -17,6 +17,7 @@ from podmachine.poller import poll_all_channels
 from podmachine.processor import process_pending_videos
 from podmachine.requeue import requeue_stale_failures
 from podmachine.retention import apply_retention
+from podmachine.settings import get_default_retention
 from podmachine.tagger import fetch_thumbnail, tag_audio_file
 from podmachine.youtube import fetch_channel_avatar_url, fetch_channel_feed
 
@@ -56,9 +57,10 @@ def run_cycle(
             conn, media_dir, channel_names, download_fn=download_fn, tag_fn=tag_fn, sleep_fn=sleep_fn
         )
 
+        default_retention = get_default_retention(conn)
         deleted_count = 0
         for channel in channels:
-            effective_retention = channel.retention or config.retention
+            effective_retention = channel.retention or default_retention
             deleted_count += retention_fn(conn, channel, effective_retention, media_dir)
     finally:
         conn.close()

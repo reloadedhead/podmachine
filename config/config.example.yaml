@@ -15,6 +15,12 @@ base_url: "http://podmachine.local:8000"
 # by default. Only "count" is implemented today (keep the N most recent
 # episodes per channel, delete the rest) — see docs/retention.md for
 # the planned "age" and "size" strategies.
+#
+# One-time bootstrap only, like `channels` below: the first time podmachine
+# starts with no default retention policy stored yet, this is imported and
+# then ignored from then on — change it afterwards from the admin dashboard
+# (requires admin.password above) instead of editing this file and
+# restarting.
 # retention:
 #   strategy: count
 #   keep_latest: 20

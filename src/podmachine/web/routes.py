@@ -25,6 +25,7 @@ from podmachine.poller import poll_all_channels
 from podmachine.processor import process_pending_videos, retry_video
 from podmachine.queries import channel_status_rows, channel_videos
 from podmachine.retention import delete_episode
+from podmachine.settings import get_default_retention, set_default_retention
 from podmachine.web.auth import require_admin
 from podmachine.youtube import fetch_channel_name
 
@@ -62,9 +63,14 @@ def dashboard(request: Request) -> HTMLResponse:
     conn = connect(request.app.state.db_path)
     try:
         channels = channel_status_rows(conn, list_channels(conn))
+        default_retention = get_default_retention(conn)
     finally:
         conn.close()
-    return templates.TemplateResponse(request, "dashboard.html", {"channels": channels, "error": None})
+    return templates.TemplateResponse(
+        request,
+        "dashboard.html",
+        {"channels": channels, "default_retention": default_retention, "error": None},
+    )
 
 
 @router.get("/partials/channels", response_class=HTMLResponse)
@@ -136,6 +142,32 @@ def action_add_channel(
         request,
         "partials/channel_table.html",
         {"channels": channels, "error": error},
+        status_code=status_code,
+    )
+
+
+@router.post("/settings/retention", response_class=HTMLResponse)
+def action_update_default_retention(
+    request: Request,
+    strategy: str = Form("none"),
+    keep_latest: str = Form(""),
+) -> HTMLResponse:
+    conn = connect(request.app.state.db_path)
+    try:
+        error = None
+        try:
+            retention = RetentionConfig(strategy=strategy, keep_latest=int(keep_latest) if keep_latest else None)
+            set_default_retention(conn, retention)
+        except ValidationError as exc:
+            error = str(exc)
+        default_retention = get_default_retention(conn)
+    finally:
+        conn.close()
+    status_code = 400 if error else 200
+    return templates.TemplateResponse(
+        request,
+        "partials/default_retention.html",
+        {"default_retention": default_retention, "error": error},
         status_code=status_code,
     )
 

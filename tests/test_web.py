@@ -340,3 +340,34 @@ def test_action_update_retention_clears_with_blank_strategy(client):
     row = conn.execute("SELECT retention_json FROM channels WHERE slug = 'example-channel'").fetchone()
     conn.close()
     assert row["retention_json"] is None
+
+
+def test_dashboard_shows_default_retention(client):
+    response = client.get("/admin/", auth=("admin", "secret123"))
+    assert response.status_code == 200
+    assert 'id="default-retention"' in response.text
+
+
+def test_action_update_default_retention(client):
+    response = client.post(
+        "/admin/settings/retention",
+        data={"strategy": "count", "keep_latest": "12"},
+        auth=("admin", "secret123"),
+    )
+    assert response.status_code == 200
+    assert 'id="default-retention"' in response.text
+
+    conn = connect(client.app.state.db_path)
+    row = conn.execute("SELECT value FROM settings WHERE key = 'default_retention'").fetchone()
+    conn.close()
+    assert '"strategy":"count"' in row["value"]
+    assert '"keep_latest":12' in row["value"]
+
+
+def test_action_update_default_retention_rejects_count_without_keep_latest(client):
+    response = client.post(
+        "/admin/settings/retention",
+        data={"strategy": "count", "keep_latest": ""},
+        auth=("admin", "secret123"),
+    )
+    assert response.status_code == 400

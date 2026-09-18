@@ -19,6 +19,7 @@ from podmachine.poller import poll_all_channels
 from podmachine.processor import process_pending_videos
 from podmachine.queries import channel_status_rows
 from podmachine.scheduler import run_cycle, start_scheduler
+from podmachine.settings import import_default_retention_from_config_if_unset
 from podmachine.web.routes import router as admin_router
 
 logging.basicConfig(
@@ -37,6 +38,7 @@ async def lifespan(app: FastAPI):
     conn = connect(app.state.db_path)
     try:
         import_channels_from_config_if_empty(conn, config.channels)
+        import_default_retention_from_config_if_unset(conn, config.retention)
         tracked = len(db_list_channels(conn))
     finally:
         conn.close()

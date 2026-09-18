@@ -1,0 +1,21 @@
+<section id="default-retention" class="card">
+  <h2>Default retention</h2>
+  {% if error %}<p class="err">{{ error }}</p>{% endif %}
+  <form hx-post="/admin/settings/retention" hx-target="#default-retention" hx-swap="outerHTML" class="retention-form">
+    <label>Strategy
+      <select name="strategy">
+        <option value="none" {% if default_retention.strategy == 'none' %}selected{% endif %}>none (keep all)</option>
+        <option value="count" {% if default_retention.strategy == 'count' %}selected{% endif %}>count</option>
+      </select>
+    </label>
+    <label>Keep latest
+      <input type="number" name="keep_latest" min="1"
+             value="{{ default_retention.keep_latest if default_retention.keep_latest else '' }}">
+    </label>
+    <button type="submit" class="btn btn-primary">Save</button>
+  </form>
+  <p class="hint">
+    Applies to every channel that doesn't set its own retention override (see a channel's page).
+    Changing it here takes effect immediately, no restart needed.
+  </p>
+</section>
