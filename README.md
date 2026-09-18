@@ -75,6 +75,7 @@ pull.
 | `GET /media/<slug>/<file>` | Episode audio file |
 | `GET /artwork/<slug>.jpg` | Channel cover art |
 | `GET /admin/` | Admin dashboard (channel status, episode list, manual poll/process) — only if `admin.password` is set |
+| `GET /admin/settings` | Admin settings page (default retention policy) — only if `admin.password` is set |
 
 ## Admin web UI
 
@@ -87,7 +88,7 @@ slug are fetched/generated automatically, or you can set them by hand)
 and remove one;
 from a channel's detail page you can retry a failed episode, delete an
 episode (removes the file, keeps the tombstoned row so it isn't
-re-downloaded), and override its retention policy. The dashboard also has
+re-downloaded), and override its retention policy. The Settings page has
 a "Default retention" setting — the app-wide policy every channel falls
 back to unless it has its own override. All of this is stored in the
 database, not config.yaml — no restart needed. It's server-rendered
@@ -101,9 +102,9 @@ has, since podcast apps need to reach it without a login prompt).
 ## Episode retention
 
 Off by default — downloaded episodes accumulate forever unless you opt
-in. Set the default policy from the admin dashboard's "Default retention"
-card (or bootstrap it via config.yaml's `retention:` block, see above) to
-keep only the N most recent episodes per channel:
+in. Set the default policy from the admin Settings page's "Default
+retention" card (or bootstrap it via config.yaml's `retention:` block, see
+above) to keep only the N most recent episodes per channel:
 
 ```yaml
 retention:

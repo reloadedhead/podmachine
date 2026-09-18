@@ -63,13 +63,20 @@ def dashboard(request: Request) -> HTMLResponse:
     conn = connect(request.app.state.db_path)
     try:
         channels = channel_status_rows(conn, list_channels(conn))
+    finally:
+        conn.close()
+    return templates.TemplateResponse(request, "dashboard.html", {"channels": channels, "error": None})
+
+
+@router.get("/settings", response_class=HTMLResponse)
+def settings_page(request: Request) -> HTMLResponse:
+    conn = connect(request.app.state.db_path)
+    try:
         default_retention = get_default_retention(conn)
     finally:
         conn.close()
     return templates.TemplateResponse(
-        request,
-        "dashboard.html",
-        {"channels": channels, "default_retention": default_retention, "error": None},
+        request, "settings.html", {"default_retention": default_retention, "error": None}
     )
 
 
@@ -89,10 +96,13 @@ def channel_detail(request: Request, slug: str) -> HTMLResponse:
     try:
         channel = _find_channel(conn, slug)
         videos = channel_videos(conn, slug)
+        default_retention = get_default_retention(conn)
     finally:
         conn.close()
     return templates.TemplateResponse(
-        request, "channel_detail.html", {"channel": channel, "videos": videos, "error": None}
+        request,
+        "channel_detail.html",
+        {"channel": channel, "videos": videos, "default_retention": default_retention, "error": None},
     )
 
 
@@ -206,13 +216,14 @@ def action_update_retention(
             channel = _find_channel(conn, slug)
         except ValidationError as exc:
             error = str(exc)
+        default_retention = get_default_retention(conn)
     finally:
         conn.close()
     status_code = 400 if error else 200
     return templates.TemplateResponse(
         request,
         "partials/channel_meta.html",
-        {"channel": channel, "error": error},
+        {"channel": channel, "default_retention": default_retention, "error": error},
         status_code=status_code,
     )
 

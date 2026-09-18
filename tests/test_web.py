@@ -342,10 +342,15 @@ def test_action_update_retention_clears_with_blank_strategy(client):
     assert row["retention_json"] is None
 
 
-def test_dashboard_shows_default_retention(client):
-    response = client.get("/admin/", auth=("admin", "secret123"))
+def test_settings_page_shows_default_retention(client):
+    response = client.get("/admin/settings", auth=("admin", "secret123"))
     assert response.status_code == 200
     assert 'id="default-retention"' in response.text
+
+
+def test_settings_page_requires_auth(client):
+    response = client.get("/admin/settings")
+    assert response.status_code == 401
 
 
 def test_action_update_default_retention(client):

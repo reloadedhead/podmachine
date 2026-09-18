@@ -1,7 +1,9 @@
 <div id="channel-meta" class="card">
   {% if error %}<p class="err">{{ error }}</p>{% endif %}
   <p class="meta">slug: <code>{{ channel.slug }}</code> · YouTube channel ID: <code>{{ channel.id }}</code></p>
-  <form hx-post="/admin/channels/{{ channel.slug }}/retention" hx-target="#channel-meta" hx-swap="outerHTML" class="retention-form">
+  <form hx-post="/admin/channels/{{ channel.slug }}/retention" hx-target="#channel-meta" hx-swap="outerHTML"
+        class="retention-form" data-global-strategy="{{ default_retention.strategy }}"
+        data-global-keep-latest="{{ default_retention.keep_latest or '' }}">
     <label>Retention
       <select name="strategy">
         <option value="" {% if not channel.retention %}selected{% endif %}>use global default</option>
@@ -9,14 +11,11 @@
         <option value="count" {% if channel.retention and channel.retention.strategy == 'count' %}selected{% endif %}>count</option>
       </select>
     </label>
-    <label>Keep latest
+    <label class="keep-latest-field">Keep latest
       <input type="number" name="keep_latest" min="1"
              value="{{ channel.retention.keep_latest if channel.retention and channel.retention.keep_latest else '' }}">
     </label>
+    <span class="retention-description hint-inline"></span>
     <button type="submit" class="btn btn-primary">Save</button>
   </form>
-  <p class="hint">
-    "Use global default" applies the app-wide retention policy (set on the
-    <a href="/admin/">dashboard</a>) to this channel. Choose "none" or "count" to override it for this channel only.
-  </p>
 </div>

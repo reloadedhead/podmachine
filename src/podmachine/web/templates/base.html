@@ -10,6 +10,10 @@
 <body>
   <header>
     <a href="/admin/" class="brand"><span class="brand-accent">pod</span>machine</a>
+    <nav class="nav">
+      <a href="/admin/" {% if request.url.path == '/admin/' %}class="active"{% endif %}>Channels</a>
+      <a href="/admin/settings" {% if request.url.path == '/admin/settings' %}class="active"{% endif %}>Settings</a>
+    </nav>
   </header>
   <main>
     {% block content %}{% endblock %}
@@ -28,6 +32,42 @@
     }
     document.addEventListener("DOMContentLoaded", localizeDates);
     document.body.addEventListener("htmx:afterSettle", localizeDates);
+
+    // Per-channel retention form: only the "count" strategy needs the
+    // number input, and picking "use global default" or "none" can just
+    // say in words what that means instead — no server round-trip needed
+    // for this, it's a pure client-side description of the selected option.
+    function initRetentionForms() {
+      document.querySelectorAll(".retention-form[data-global-strategy]").forEach(function (form) {
+        var select = form.querySelector('select[name="strategy"]');
+        var keepLatestField = form.querySelector(".keep-latest-field");
+        var description = form.querySelector(".retention-description");
+        if (!select) return;
+
+        var globalStrategy = form.dataset.globalStrategy;
+        var globalKeepLatest = form.dataset.globalKeepLatest;
+
+        function update() {
+          var value = select.value;
+          if (keepLatestField) keepLatestField.classList.toggle("is-hidden", value !== "count");
+          if (!description) return;
+          if (value === "count") {
+            description.textContent = "";
+          } else if (value === "none") {
+            description.textContent = "Keeps all episodes.";
+          } else if (globalStrategy === "count") {
+            description.textContent = "Keeps the " + globalKeepLatest + " latest episodes.";
+          } else {
+            description.textContent = "Keeps all episodes.";
+          }
+        }
+
+        select.addEventListener("change", update);
+        update();
+      });
+    }
+    document.addEventListener("DOMContentLoaded", initRetentionForms);
+    document.body.addEventListener("htmx:afterSettle", initRetentionForms);
   </script>
 </body>
 </html>

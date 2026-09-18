@@ -68,6 +68,22 @@ header .brand {
 
 header .brand-accent { color: var(--accent); }
 
+.nav {
+  display: flex;
+  gap: 1.25rem;
+  margin-left: auto;
+}
+
+.nav a {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 550;
+  text-decoration: none;
+}
+
+.nav a:hover { color: var(--text); }
+.nav a.active { color: var(--accent); }
+
 main {
   max-width: 980px;
   margin: 0 auto;
@@ -277,6 +293,10 @@ code {
 }
 
 .retention-form input[type="number"] { width: 5.5rem; }
+
+.keep-latest-field.is-hidden { display: none; }
+
+.hint-inline { color: var(--text-muted); font-size: 0.85rem; }
 
 .htmx-indicator { opacity: 0; transition: opacity 150ms; color: var(--text-muted); font-size: 0.85rem; }
 .htmx-request.htmx-indicator,
