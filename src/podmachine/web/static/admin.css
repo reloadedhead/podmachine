@@ -116,6 +116,32 @@ h1 {
   margin: 0;
 }
 
+.avatar {
+  border-radius: 999px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.avatar-sm {
+  width: 24px;
+  height: 24px;
+  vertical-align: middle;
+  margin-right: 0.5rem;
+}
+
+.avatar-lg {
+  width: 48px;
+  height: 48px;
+}
+
+.channel-cell { display: flex; align-items: center; }
+
+.channel-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 h2 {
   font-size: 1rem;
   font-weight: 650;

@@ -20,7 +20,12 @@
     <tbody>
       {% for c in channels %}
       <tr>
-        <td data-label="Channel"><a href="/admin/channels/{{ c.slug }}">{{ c.name }}</a></td>
+        <td data-label="Channel">
+          <div class="channel-cell">
+            {% if c.has_avatar %}<img class="avatar avatar-sm" src="/artwork/{{ c.slug }}.jpg" alt="">{% endif %}
+            <a href="/admin/channels/{{ c.slug }}">{{ c.name }}</a>
+          </div>
+        </td>
         <td data-label="Status">
           {% if c.backed_off_until %}
             <span class="badge badge-error">backed off</span>
