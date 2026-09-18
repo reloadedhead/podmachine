@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ channel.name }} — podmachine admin{% endblock %}
 {% block content %}
-  <p><a href="/admin/">&larr; back to channels</a></p>
-  <h1>{{ channel.name }}</h1>
+  <a href="/admin/" class="back-link">&larr; back to channels</a>
+  <div class="page-head">
+    <h1>{{ channel.name }}</h1>
+  </div>
   {% include "partials/channel_meta.html" %}
   {% include "partials/video_table.html" %}
 {% endblock %}

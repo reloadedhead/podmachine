@@ -1,21 +1,25 @@
 {% extends "base.html" %}
 {% block title %}podmachine admin — channels{% endblock %}
 {% block content %}
-  <h1>Channels</h1>
-  <div class="actions">
-    <button hx-post="/admin/actions/poll" hx-target="#channel-table" hx-swap="outerHTML"
-            hx-indicator="#busy" hx-disabled-elt="this">Poll now</button>
-    <button hx-post="/admin/actions/process" hx-target="#channel-table" hx-swap="outerHTML"
-            hx-indicator="#busy" hx-disabled-elt="this">Process now</button>
-    <span id="busy" class="htmx-indicator">Working…</span>
+  <div class="page-head">
+    <h1>Channels</h1>
+    <div class="actions">
+      <button class="btn" hx-post="/admin/actions/poll" hx-target="#channel-table" hx-swap="outerHTML"
+              hx-indicator="#busy" hx-disabled-elt="this">Poll now</button>
+      <button class="btn" hx-post="/admin/actions/process" hx-target="#channel-table" hx-swap="outerHTML"
+              hx-indicator="#busy" hx-disabled-elt="this">Process now</button>
+      <span id="busy" class="htmx-indicator">Working…</span>
+    </div>
   </div>
-  {% include "partials/channel_table.html" %}
+  <section class="card">
+    <h2>Add channel</h2>
+    <form hx-post="/admin/channels" hx-target="#channel-table" hx-swap="outerHTML" class="add-channel-form">
+      <input type="text" name="channel_id" placeholder="YouTube channel ID" required>
+      <input type="text" name="name" placeholder="Display name (auto-fetched if blank)">
+      <input type="text" name="slug" placeholder="slug (auto-generated if blank)">
+      <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+  </section>
 
-  <h2>Add channel</h2>
-  <form hx-post="/admin/channels" hx-target="#channel-table" hx-swap="outerHTML" class="add-channel-form">
-    <input type="text" name="channel_id" placeholder="YouTube channel ID" required>
-    <input type="text" name="name" placeholder="Display name (auto-fetched if blank)">
-    <input type="text" name="slug" placeholder="slug (auto-generated if blank)">
-    <button type="submit">Add</button>
-  </form>
+  {% include "partials/channel_table.html" %}
 {% endblock %}

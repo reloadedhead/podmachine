@@ -9,10 +9,25 @@
 </head>
 <body>
   <header>
-    <a href="/admin/" class="brand">podmachine</a>
+    <a href="/admin/" class="brand"><span class="brand-accent">pod</span>machine</a>
   </header>
   <main>
     {% block content %}{% endblock %}
   </main>
+  <script>
+    // Server renders UTC ISO timestamps (no client timezone data at render
+    // time); localize them here instead, and re-run after every htmx swap
+    // since polling/action responses bring in fresh <time> elements.
+    function localizeDates() {
+      document.querySelectorAll("time[datetime]").forEach(function (el) {
+        var d = new Date(el.getAttribute("datetime"));
+        if (!isNaN(d)) {
+          el.textContent = d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+        }
+      });
+    }
+    document.addEventListener("DOMContentLoaded", localizeDates);
+    document.body.addEventListener("htmx:afterSettle", localizeDates);
+  </script>
 </body>
 </html>
