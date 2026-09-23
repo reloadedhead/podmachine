@@ -9,7 +9,7 @@ from podmachine.scheduler import run_cycle, start_scheduler
 from podmachine.settings import import_default_retention_from_config_if_unset
 from podmachine.youtube import VideoEntry
 
-CHANNEL = ChannelConfig(id="UCtest0000000000000000", name="Test Channel", slug="test-channel")
+CHANNEL = ChannelConfig(id="UCtest0000000000000000", name="Test Channel", slug="test-channel", category="Comedy")
 
 
 def setup_db(db_path, config):

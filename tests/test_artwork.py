@@ -2,7 +2,7 @@ from podmachine.artwork import ensure_channel_artwork
 from podmachine.config import ChannelConfig
 from podmachine.db import connect, init_db
 
-CHANNEL = ChannelConfig(id="UCtest0000000000000000", name="Test Channel", slug="test-channel")
+CHANNEL = ChannelConfig(id="UCtest0000000000000000", name="Test Channel", slug="test-channel", category="Comedy")
 
 
 def make_conn(tmp_path):

@@ -29,6 +29,13 @@ base_url: "http://podmachine.local:8000"
 # channel database, this list is imported and then ignored from then on.
 # Add/remove/edit channels afterwards from the admin UI (requires
 # admin.password above) instead of editing this file and restarting.
+#
+# Every channel requires `category`, one of Apple's fixed iTunes/Apple
+# Podcasts categories (Arts, Business, Comedy, Education, Fiction,
+# Government, Health & Fitness, History, Kids & Family, Leisure, Music,
+# News, Religion & Spirituality, Science, Society & Culture, Sports,
+# Technology, True Crime, TV & Film) — also editable later from the
+# channel's admin page.
 channels: []
 # Example (retention can also be set per channel, overriding the
 # default above entirely rather than merging with it):
@@ -36,6 +43,7 @@ channels: []
 #   - id: UCxxxxxxxxxxxxxxxxxxxxxx
 #     name: Example Channel
 #     slug: example-channel
+#     category: Society & Culture
 #     retention:
 #       strategy: count
 #       keep_latest: 5

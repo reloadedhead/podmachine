@@ -9,12 +9,13 @@ from podmachine.channels import (
     list_channels,
     slugify,
     unique_slug,
+    update_channel_category,
     update_channel_retention,
 )
 from podmachine.config import ChannelConfig, RetentionConfig
 from podmachine.db import connect, init_db
 
-CHANNEL = ChannelConfig(id="UC1", name="Example Channel", slug="example-channel")
+CHANNEL = ChannelConfig(id="UC1", name="Example Channel", slug="example-channel", category="Comedy")
 
 
 @pytest.fixture
@@ -31,11 +32,18 @@ def test_add_and_get_channel(conn):
     channel = get_channel(conn, "example-channel")
     assert channel.id == "UC1"
     assert channel.name == "Example Channel"
+    assert channel.category == "Comedy"
     assert channel.retention is None
 
 
 def test_add_channel_persists_retention(conn):
-    channel = ChannelConfig(id="UC1", name="Example", slug="example", retention=RetentionConfig(strategy="count", keep_latest=5))
+    channel = ChannelConfig(
+        id="UC1",
+        name="Example",
+        slug="example",
+        category="Comedy",
+        retention=RetentionConfig(strategy="count", keep_latest=5),
+    )
     add_channel(conn, channel)
     fetched = get_channel(conn, "example")
     assert fetched.retention.strategy == "count"
@@ -45,13 +53,13 @@ def test_add_channel_persists_retention(conn):
 def test_add_channel_rejects_duplicate_slug(conn):
     add_channel(conn, CHANNEL)
     with pytest.raises(DuplicateChannelError):
-        add_channel(conn, ChannelConfig(id="UC2", name="Other", slug="example-channel"))
+        add_channel(conn, ChannelConfig(id="UC2", name="Other", slug="example-channel", category="Comedy"))
 
 
 def test_add_channel_rejects_duplicate_id(conn):
     add_channel(conn, CHANNEL)
     with pytest.raises(DuplicateChannelError):
-        add_channel(conn, ChannelConfig(id="UC1", name="Other", slug="other-slug"))
+        add_channel(conn, ChannelConfig(id="UC1", name="Other", slug="other-slug", category="Comedy"))
 
 
 def test_get_channel_unknown_slug_returns_none(conn):
@@ -73,9 +81,15 @@ def test_update_channel_retention(conn):
     assert get_channel(conn, "example-channel").retention is None
 
 
+def test_update_channel_category(conn):
+    add_channel(conn, CHANNEL)
+    update_channel_category(conn, "example-channel", "True Crime")
+    assert get_channel(conn, "example-channel").category == "True Crime"
+
+
 def test_list_channels_sorted_by_name(conn):
-    add_channel(conn, ChannelConfig(id="UC2", name="Zeta", slug="zeta"))
-    add_channel(conn, ChannelConfig(id="UC1", name="Alpha", slug="alpha"))
+    add_channel(conn, ChannelConfig(id="UC2", name="Zeta", slug="zeta", category="Comedy"))
+    add_channel(conn, ChannelConfig(id="UC1", name="Alpha", slug="alpha", category="Comedy"))
     names = [c.name for c in list_channels(conn)]
     assert names == ["Alpha", "Zeta"]
 
@@ -85,8 +99,19 @@ def test_import_channels_from_config_only_when_empty(conn):
     assert [c.slug for c in list_channels(conn)] == ["example-channel"]
 
     # Table is no longer empty: a second import with different channels is a no-op.
-    import_channels_from_config_if_empty(conn, [ChannelConfig(id="UC9", name="Ignored", slug="ignored")])
+    import_channels_from_config_if_empty(
+        conn, [ChannelConfig(id="UC9", name="Ignored", slug="ignored", category="Comedy")]
+    )
     assert [c.slug for c in list_channels(conn)] == ["example-channel"]
+
+
+def test_existing_channel_row_backfills_category_default(conn):
+    # A channel added before the `category` column existed (simulated here by
+    # inserting directly, bypassing add_channel/ChannelConfig) should pick up
+    # the SQL column DEFAULT rather than being left with no category.
+    conn.execute("INSERT INTO channels (slug, id, name) VALUES ('old-channel', 'UC9', 'Old Channel')")
+    conn.commit()
+    assert get_channel(conn, "old-channel").category == "Society & Culture"
 
 
 def test_slugify_lowercases_and_replaces_non_alnum():
@@ -106,5 +131,5 @@ def test_unique_slug_appends_suffix_on_collision(conn):
     add_channel(conn, CHANNEL)  # slug "example-channel"
     assert unique_slug(conn, "example-channel") == "example-channel-2"
 
-    add_channel(conn, ChannelConfig(id="UC2", name="Other", slug="example-channel-2"))
+    add_channel(conn, ChannelConfig(id="UC2", name="Other", slug="example-channel-2", category="Comedy"))
     assert unique_slug(conn, "example-channel") == "example-channel-3"

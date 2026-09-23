@@ -10,8 +10,6 @@ from podmachine.config import ChannelConfig
 
 logger = logging.getLogger("podmachine.feed")
 
-DEFAULT_ITUNES_CATEGORY = "Society & Culture"
-
 
 def _itunes_image_url(url: str | None) -> str | None:
     """feedgen requires itunes:image URLs to end in .jpg/.png, but YouTube
@@ -43,7 +41,7 @@ def build_channel_feed(conn: sqlite3.Connection, channel: ChannelConfig, base_ur
     fg.description(f"Audio episodes from the {channel.name} YouTube channel.")
     fg.language("en")
     fg.podcast.itunes_author(channel.name)
-    fg.podcast.itunes_category(DEFAULT_ITUNES_CATEGORY)
+    fg.podcast.itunes_category(channel.category)
     fg.podcast.itunes_explicit("no")
 
     channel_row = conn.execute("SELECT avatar_path FROM channel_state WHERE slug = ?", (channel.slug,)).fetchone()

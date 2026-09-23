@@ -4,6 +4,8 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+from podmachine.config import ITUNES_CATEGORIES
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS channel_state (
     slug TEXT PRIMARY KEY,
@@ -66,6 +68,18 @@ CHANNEL_STATE_COLUMNS = {
     "avatar_path": "TEXT",
 }
 
+# SQLite has no native ENUM type; a CHECK constraint against the same list
+# ChannelConfig.category validates against (config.ITUNES_CATEGORIES) is the
+# closest equivalent. Pre-existing channels (added before this column
+# existed) backfill to the DEFAULT rather than being left with no category.
+_CATEGORY_ENUM_SQL = ", ".join("'" + c.replace("'", "''") + "'" for c in ITUNES_CATEGORIES)
+CHANNEL_COLUMNS = {
+    "category": (
+        "TEXT NOT NULL DEFAULT 'Society & Culture' "
+        f"CHECK (category IN ({_CATEGORY_ENUM_SQL}))"
+    ),
+}
+
 
 def connect(db_path: Path) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -80,6 +94,7 @@ def init_db(db_path: Path) -> None:
         conn.executescript(SCHEMA)
         _ensure_columns(conn, "videos", VIDEO_COLUMNS)
         _ensure_columns(conn, "channel_state", CHANNEL_STATE_COLUMNS)
+        _ensure_columns(conn, "channels", CHANNEL_COLUMNS)
         conn.commit()
     finally:
         conn.close()

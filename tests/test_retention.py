@@ -7,7 +7,7 @@ from podmachine.poller import poll_channel
 from podmachine.retention import apply_retention
 from podmachine.youtube import VideoEntry
 
-CHANNEL = ChannelConfig(id="UCtest0000000000000000", name="Test Channel", slug="test-channel")
+CHANNEL = ChannelConfig(id="UCtest0000000000000000", name="Test Channel", slug="test-channel", category="Comedy")
 NONE_RETENTION = RetentionConfig(strategy="none")
 
 

@@ -23,6 +23,7 @@ def client(tmp_path, monkeypatch):
         "  - id: UC1\n"
         "    name: Example Channel\n"
         "    slug: example-channel\n"
+        "    category: Comedy\n"
     )
     # load_config() reads the DEFAULT_CONFIG_PATH module constant (baked in
     # at import time from the env var), so patch that directly rather than
@@ -259,7 +260,7 @@ def test_action_queue_unknown_video_404s(client):
 def test_action_add_channel(client):
     response = client.post(
         "/admin/channels",
-        data={"channel_id": "UC2", "name": "New Channel", "slug": "new-channel"},
+        data={"channel_id": "UC2", "name": "New Channel", "slug": "new-channel", "category": "Comedy"},
         auth=("admin", "secret123"),
     )
     assert response.status_code == 200
@@ -269,10 +270,29 @@ def test_action_add_channel(client):
     assert detail.status_code == 200
 
 
+def test_action_add_channel_requires_category(client):
+    response = client.post(
+        "/admin/channels",
+        data={"channel_id": "UC2", "name": "New Channel", "slug": "new-channel"},
+        auth=("admin", "secret123"),
+    )
+    assert response.status_code == 422
+
+
+def test_action_add_channel_rejects_invalid_category(client):
+    response = client.post(
+        "/admin/channels",
+        data={"channel_id": "UC2", "name": "New Channel", "slug": "new-channel", "category": "Not Real"},
+        auth=("admin", "secret123"),
+    )
+    assert response.status_code == 400
+    assert response.headers["HX-Retarget"] == "#add-channel-error"
+
+
 def test_action_add_channel_rejects_duplicate_slug(client):
     response = client.post(
         "/admin/channels",
-        data={"channel_id": "UC9", "name": "Dup", "slug": "example-channel"},
+        data={"channel_id": "UC9", "name": "Dup", "slug": "example-channel", "category": "Comedy"},
         auth=("admin", "secret123"),
     )
     assert response.status_code == 400
@@ -284,7 +304,7 @@ def test_action_add_channel_rejects_duplicate_slug(client):
 def test_action_add_channel_autofetches_name_and_slug(client, monkeypatch):
     monkeypatch.setattr("podmachine.web.routes.fetch_channel_name", lambda channel_id: "Fetched Name")
     response = client.post(
-        "/admin/channels", data={"channel_id": "UC2"}, auth=("admin", "secret123")
+        "/admin/channels", data={"channel_id": "UC2", "category": "Comedy"}, auth=("admin", "secret123")
     )
     assert response.status_code == 200
     assert "Fetched Name" in response.text
@@ -296,7 +316,7 @@ def test_action_add_channel_autofetches_name_and_slug(client, monkeypatch):
 def test_action_add_channel_dedupes_slug_collision(client, monkeypatch):
     monkeypatch.setattr("podmachine.web.routes.fetch_channel_name", lambda channel_id: "Example Channel")
     response = client.post(
-        "/admin/channels", data={"channel_id": "UC2"}, auth=("admin", "secret123")
+        "/admin/channels", data={"channel_id": "UC2", "category": "Comedy"}, auth=("admin", "secret123")
     )
     assert response.status_code == 200
 
@@ -313,7 +333,7 @@ def test_action_add_channel_fetch_failure_shows_error(client, monkeypatch):
 
     monkeypatch.setattr("podmachine.web.routes.fetch_channel_name", raise_error)
     response = client.post(
-        "/admin/channels", data={"channel_id": "UC2"}, auth=("admin", "secret123")
+        "/admin/channels", data={"channel_id": "UC2", "category": "Comedy"}, auth=("admin", "secret123")
     )
     assert response.status_code == 400
     assert "fetch a channel name" in response.text
@@ -326,7 +346,7 @@ def test_action_add_channel_manual_name_and_slug_skip_fetch(client, monkeypatch)
     monkeypatch.setattr("podmachine.web.routes.fetch_channel_name", unexpected_fetch)
     response = client.post(
         "/admin/channels",
-        data={"channel_id": "UC2", "name": "Manual Name", "slug": "manual-slug"},
+        data={"channel_id": "UC2", "name": "Manual Name", "slug": "manual-slug", "category": "Comedy"},
         auth=("admin", "secret123"),
     )
     assert response.status_code == 200
@@ -379,6 +399,44 @@ def test_action_update_retention_clears_with_blank_strategy(client):
     row = conn.execute("SELECT retention_json FROM channels WHERE slug = 'example-channel'").fetchone()
     conn.close()
     assert row["retention_json"] is None
+
+
+def test_action_update_category(client):
+    response = client.post(
+        "/admin/channels/example-channel/category",
+        data={"category": "True Crime"},
+        auth=("admin", "secret123"),
+    )
+    assert response.status_code == 200
+    assert 'id="channel-meta"' in response.text
+
+    conn = connect(client.app.state.db_path)
+    row = conn.execute("SELECT category FROM channels WHERE slug = 'example-channel'").fetchone()
+    conn.close()
+    assert row["category"] == "True Crime"
+
+
+def test_action_update_category_rejects_invalid_value(client):
+    response = client.post(
+        "/admin/channels/example-channel/category",
+        data={"category": "Not Real"},
+        auth=("admin", "secret123"),
+    )
+    assert response.status_code == 400
+
+    conn = connect(client.app.state.db_path)
+    row = conn.execute("SELECT category FROM channels WHERE slug = 'example-channel'").fetchone()
+    conn.close()
+    assert row["category"] == "Comedy"  # unchanged
+
+
+def test_action_update_category_unknown_slug_404s(client):
+    response = client.post(
+        "/admin/channels/does-not-exist/category",
+        data={"category": "Comedy"},
+        auth=("admin", "secret123"),
+    )
+    assert response.status_code == 404
 
 
 def test_settings_page_shows_default_retention(client):
