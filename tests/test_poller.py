@@ -5,8 +5,10 @@ from podmachine.db import connect, init_db
 from podmachine.poller import CIRCUIT_BREAKER_THRESHOLD, poll_all_channels, poll_channel
 from podmachine.youtube import VideoEntry
 
-CHANNEL = ChannelConfig(id="UCtest0000000000000000", name="Test Channel", slug="test-channel")
-CHANNEL_B = ChannelConfig(id="UCtest1111111111111111", name="Test Channel B", slug="test-channel-b")
+CHANNEL = ChannelConfig(id="UCtest0000000000000000", name="Test Channel", slug="test-channel", category="Comedy")
+CHANNEL_B = ChannelConfig(
+    id="UCtest1111111111111111", name="Test Channel B", slug="test-channel-b", category="Comedy"
+)
 
 
 def make_entry(video_id: str, is_short: bool = False, published_at: str = "2026-08-10T12:00:00+00:00") -> VideoEntry:

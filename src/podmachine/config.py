@@ -9,6 +9,32 @@ from pydantic import BaseModel, Field, model_validator
 
 DEFAULT_CONFIG_PATH = Path(os.environ.get("PODMACHINE_CONFIG", "/config/config.yaml"))
 
+# Apple's top-level iTunes/Apple Podcasts categories (subcategories aren't
+# supported yet — see the README). feedgen itself doesn't validate
+# itunes:category against this list, so it's enforced here instead, and
+# mirrored as a SQL CHECK constraint in db.py so the two can't drift.
+ITUNES_CATEGORIES = (
+    "Arts",
+    "Business",
+    "Comedy",
+    "Education",
+    "Fiction",
+    "Government",
+    "Health & Fitness",
+    "History",
+    "Kids & Family",
+    "Leisure",
+    "Music",
+    "News",
+    "Religion & Spirituality",
+    "Science",
+    "Society & Culture",
+    "Sports",
+    "Technology",
+    "True Crime",
+    "TV & Film",
+)
+
 
 class RetentionConfig(BaseModel):
     # Only "count" is implemented; "age" and "size" are planned — see
@@ -39,6 +65,11 @@ class ChannelConfig(BaseModel):
     id: str
     name: str
     slug: str
+    # No app-level default: every channel must be given a category when it's
+    # created (bootstrap config.yaml entry or the admin "Add channel" form).
+    # The database column has its own DEFAULT for pre-existing rows — see
+    # db.py's CHANNEL_COLUMNS.
+    category: Literal[*ITUNES_CATEGORIES]
     retention: RetentionConfig | None = None
 
 

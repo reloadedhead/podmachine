@@ -1,6 +1,17 @@
 <div id="channel-meta" class="card">
   {% if error %}<p class="err">{{ error }}</p>{% endif %}
   <p class="meta">slug: <code>{{ channel.slug }}</code> · YouTube channel ID: <code>{{ channel.id }}</code></p>
+  <form hx-post="/admin/channels/{{ channel.slug }}/category" hx-target="#channel-meta" hx-swap="outerHTML"
+        class="category-form">
+    <label>Category
+      <select name="category">
+        {% for cat in categories %}
+        <option value="{{ cat }}" {% if cat == channel.category %}selected{% endif %}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit" class="btn btn-primary">Save</button>
+  </form>
   <form hx-post="/admin/channels/{{ channel.slug }}/retention" hx-target="#channel-meta" hx-swap="outerHTML"
         class="retention-form" data-global-strategy="{{ default_retention.strategy }}"
         data-global-keep-latest="{{ default_retention.keep_latest or '' }}">

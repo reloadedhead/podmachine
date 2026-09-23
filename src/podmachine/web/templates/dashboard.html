@@ -28,6 +28,14 @@
       <label>Slug
         <input type="text" name="slug" placeholder="auto-generated if blank">
       </label>
+      <label>Category
+        <select name="category" required>
+          <option value="" disabled selected>Select a category…</option>
+          {% for cat in categories %}
+          <option value="{{ cat }}">{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </label>
       <div class="dialog-actions">
         <button type="button" class="btn" onclick="document.getElementById('add-channel-dialog').close()">Cancel</button>
         <button type="submit" class="btn btn-primary">Add</button>

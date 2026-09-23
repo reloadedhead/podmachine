@@ -5,7 +5,7 @@ from podmachine.db import connect, init_db
 from podmachine.feed import build_channel_feed
 
 NAMESPACES = {"itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd"}
-CHANNEL = ChannelConfig(id="UCxxx", name="Chan Name", slug="chan")
+CHANNEL = ChannelConfig(id="UCxxx", name="Chan Name", slug="chan", category="Comedy")
 BASE_URL = "http://podmachine.local:8000"
 
 
@@ -207,3 +207,14 @@ def test_empty_channel_produces_valid_feed_with_no_items(tmp_path):
 
     assert root.findtext("./channel/title") == "Chan Name"
     assert parse_items(xml) == []
+
+
+def test_itunes_category_uses_the_channels_own_category(tmp_path):
+    conn = make_conn(tmp_path)
+    channel = ChannelConfig(id="UCyyy", name="Other Chan", slug="other-chan", category="True Crime")
+
+    xml = build_channel_feed(conn, channel, BASE_URL)
+    root = ET.fromstring(xml)
+
+    category = root.find("./channel/itunes:category", NAMESPACES)
+    assert category.get("text") == "True Crime"

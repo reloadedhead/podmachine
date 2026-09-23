@@ -57,6 +57,7 @@ pull.
 | `channels[].id` | YouTube channel ID (`UC...`) — bootstrap only, see above |
 | `channels[].name` | Display name used as podcast/episode metadata — bootstrap only |
 | `channels[].slug` | URL-safe identifier, used in feed and file paths — bootstrap only |
+| `channels[].category` | Required. One of Apple's fixed iTunes/Apple Podcasts categories — bootstrap only for the initial import; editable afterwards from the channel's admin page |
 | `retention.strategy` | `none` (default) or `count` — bootstrap only, see above. See "Episode retention" below |
 | `retention.keep_latest` | Episodes to keep per channel when `strategy: count` — bootstrap only |
 | `channels[].retention` | Optional per-channel override, set from a channel's admin page — replaces the global retention policy entirely for that channel, not merged |
@@ -83,12 +84,14 @@ Set `admin.password` in `config.yaml` to enable a small dashboard at
 `/admin/` — per-channel status (last poll, failures, backoff, episode
 counts), a per-channel episode list with any error messages, and buttons
 to trigger a poll or a download/tag pass by hand. From the dashboard you
-can also add a channel (just a YouTube channel ID — its display name and
-slug are fetched/generated automatically, or you can set them by hand)
-and remove one;
+can also add a channel (a YouTube channel ID, plus a required iTunes
+category picked from Apple's fixed list — display name and slug are
+fetched/generated automatically, or you can set them by hand) and remove
+one;
 from a channel's detail page you can retry a failed episode, delete an
 episode (removes the file, keeps the tombstoned row so it isn't
-re-downloaded), and override its retention policy. The Settings page has
+re-downloaded), change its iTunes category, and override its retention
+policy. The Settings page has
 a "Default retention" setting — the app-wide policy every channel falls
 back to unless it has its own override. All of this is stored in the
 database, not config.yaml — no restart needed. It's server-rendered
@@ -177,9 +180,11 @@ docker run --rm -v "$(pwd)":/app -w /app python:3.12-slim-bookworm \
   fetched (or if the fetch ever fails), the feed falls back to borrowing
   the most recent episode's thumbnail so it's never imageless. Per-episode
   artwork always uses that episode's own real thumbnail.
-- The iTunes category is hardcoded to "Society & Culture" (Apple's taxonomy
-  has no generic "Other") for every channel — not yet configurable per
-  channel.
+- Each channel has its own iTunes category, required when it's added and
+  changeable afterwards from the channel's admin page. It's constrained to
+  Apple's fixed top-level category list (both in the Pydantic model and via
+  a SQL `CHECK` constraint on the `channels` table) since Apple rejects
+  anything else; subcategories aren't supported yet.
 - For personal/private LAN use only — don't expose this outside your network
   or redistribute the feeds.
 

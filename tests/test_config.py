@@ -31,11 +31,27 @@ def test_app_config_retention_defaults_when_unset():
     assert config.retention.strategy == "none"
 
 
+def test_channel_requires_category():
+    with pytest.raises(ValidationError):
+        ChannelConfig(id="UC1", name="A", slug="a")
+
+
+def test_channel_rejects_invalid_category():
+    with pytest.raises(ValidationError):
+        ChannelConfig(id="UC1", name="A", slug="a", category="Not A Real Category")
+
+
+def test_channel_accepts_valid_apple_category():
+    channel = ChannelConfig(id="UC1", name="A", slug="a", category="True Crime")
+    assert channel.category == "True Crime"
+
+
 def test_channel_retention_overrides_global_entirely(tmp_path):
     channel = ChannelConfig(
         id="UC1",
         name="A",
         slug="a",
+        category="Comedy",
         retention=RetentionConfig(strategy="count", keep_latest=3),
     )
     config = AppConfig(
@@ -48,7 +64,7 @@ def test_channel_retention_overrides_global_entirely(tmp_path):
 
 
 def test_channel_without_override_inherits_global():
-    channel = ChannelConfig(id="UC1", name="A", slug="a")
+    channel = ChannelConfig(id="UC1", name="A", slug="a", category="Comedy")
     config = AppConfig(
         base_url="http://x",
         retention=RetentionConfig(strategy="count", keep_latest=15),

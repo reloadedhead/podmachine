@@ -17,9 +17,10 @@ from podmachine.channels import (
     list_channels,
     slugify,
     unique_slug,
+    update_channel_category,
     update_channel_retention,
 )
-from podmachine.config import ChannelConfig, RetentionConfig
+from podmachine.config import ChannelConfig, ITUNES_CATEGORIES, RetentionConfig
 from podmachine.db import connect
 from podmachine.poller import poll_all_channels
 from podmachine.processor import process_pending_videos, retry_video
@@ -65,7 +66,9 @@ def dashboard(request: Request) -> HTMLResponse:
         channels = channel_status_rows(conn, list_channels(conn))
     finally:
         conn.close()
-    return templates.TemplateResponse(request, "dashboard.html", {"channels": channels, "error": None})
+    return templates.TemplateResponse(
+        request, "dashboard.html", {"channels": channels, "categories": ITUNES_CATEGORIES, "error": None}
+    )
 
 
 @router.get("/settings", response_class=HTMLResponse)
@@ -107,6 +110,7 @@ def channel_detail(request: Request, slug: str) -> HTMLResponse:
             "channel": channel,
             "videos": videos,
             "default_retention": default_retention,
+            "categories": ITUNES_CATEGORIES,
             "feed_url": feed_url,
             "error": None,
         },
@@ -130,6 +134,7 @@ def action_add_channel(
     channel_id: str = Form(...),
     name: str = Form(""),
     slug: str = Form(""),
+    category: str = Form(...),
 ) -> HTMLResponse:
     conn = connect(request.app.state.db_path)
     try:
@@ -148,7 +153,9 @@ def action_add_channel(
 
             resolved_slug = slug.strip() or unique_slug(conn, slugify(resolved_name))
 
-            add_channel(conn, ChannelConfig(id=channel_id, name=resolved_name, slug=resolved_slug))
+            add_channel(
+                conn, ChannelConfig(id=channel_id, name=resolved_name, slug=resolved_slug, category=category)
+            )
         except (DuplicateChannelError, ValidationError, ValueError) as exc:
             error = str(exc)
 
@@ -236,7 +243,30 @@ def action_update_retention(
     return templates.TemplateResponse(
         request,
         "partials/channel_meta.html",
-        {"channel": channel, "default_retention": default_retention, "error": error},
+        {"channel": channel, "default_retention": default_retention, "categories": ITUNES_CATEGORIES, "error": error},
+        status_code=status_code,
+    )
+
+
+@router.post("/channels/{slug}/category", response_class=HTMLResponse)
+def action_update_category(request: Request, slug: str, category: str = Form(...)) -> HTMLResponse:
+    conn = connect(request.app.state.db_path)
+    try:
+        channel = _find_channel(conn, slug)
+        error = None
+        if category not in ITUNES_CATEGORIES:
+            error = f"{category!r} is not a valid Apple Podcasts category"
+        else:
+            update_channel_category(conn, slug, category)
+            channel = _find_channel(conn, slug)
+        default_retention = get_default_retention(conn)
+    finally:
+        conn.close()
+    status_code = 400 if error else 200
+    return templates.TemplateResponse(
+        request,
+        "partials/channel_meta.html",
+        {"channel": channel, "default_retention": default_retention, "categories": ITUNES_CATEGORIES, "error": error},
         status_code=status_code,
     )
 
