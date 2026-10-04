@@ -19,9 +19,11 @@ SleepFn = Callable[[float], None]
 
 # A channel that fails to poll this many times in a row (bad channel ID,
 # deleted channel, persistent network issue) gets left alone for a while
-# instead of being hammered every cycle.
+# instead of being hammered every cycle. Kept short because YouTube's feed
+# endpoint also fails transiently (see youtube.fetch_channel_feed), and a
+# long backoff turns a brief outage into hours of missed uploads.
 CIRCUIT_BREAKER_THRESHOLD = 5
-CIRCUIT_BREAKER_BACKOFF_HOURS = 2
+CIRCUIT_BREAKER_BACKOFF_HOURS = 1
 
 # Small randomized gap between polling consecutive channels so requests to
 # YouTube don't arrive in a perfectly synchronized burst.
@@ -55,6 +57,10 @@ def poll_channel(
         if datetime.now(timezone.utc) < backed_off_until:
             logger.info("Skipping poll for %s: backed off until %s", channel.slug, row["backed_off_until"])
             return PollResult(channel.slug, False, 0, 0, skipped_backoff=True)
+        # Backoff has expired: start from a clean slate so one more failure
+        # doesn't immediately re-trigger a full backoff, and the admin UI
+        # stops showing "backed off" and the stale error.
+        _reset_poll_failure_state(conn, channel)
 
     try:
         entries = fetch(channel.id)
@@ -150,13 +156,17 @@ def _record_poll_failure(conn: sqlite3.Connection, channel: ChannelConfig, error
     conn.commit()
 
 
-def _record_poll_success(conn: sqlite3.Connection, channel: ChannelConfig) -> None:
+def _reset_poll_failure_state(conn: sqlite3.Connection, channel: ChannelConfig) -> None:
     conn.execute(
         "UPDATE channel_state SET consecutive_poll_failures = 0, backed_off_until = NULL, "
         "last_poll_error = NULL WHERE slug = ?",
         (channel.slug,),
     )
     conn.commit()
+
+
+def _record_poll_success(conn: sqlite3.Connection, channel: ChannelConfig) -> None:
+    _reset_poll_failure_state(conn, channel)
 
 
 def _insert_video(
