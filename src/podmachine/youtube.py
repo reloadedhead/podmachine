@@ -1,14 +1,26 @@
 from __future__ import annotations
 
+import logging
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 import requests
 import yt_dlp
 
 FEED_URL = "https://www.youtube.com/feeds/videos.xml"
 USER_AGENT = "podmachine-poller/0.1"
+
+logger = logging.getLogger("podmachine.youtube")
+
+# YouTube's RSS endpoint intermittently returns 404 (and occasionally 5xx)
+# for valid channel IDs; a retry seconds later normally succeeds. Retry
+# these, and connection errors, a few times before reporting a failure so a
+# blip doesn't count towards the poller's circuit breaker.
+FEED_MAX_ATTEMPTS = 3
+FEED_RETRY_BASE_SECONDS = 2
+RETRYABLE_STATUS_CODES = frozenset({404, 429}) | frozenset(range(500, 600))
 
 NAMESPACES = {
     "atom": "http://www.w3.org/2005/Atom",
@@ -25,15 +37,37 @@ class VideoEntry:
     is_short: bool
 
 
-def fetch_channel_feed(channel_id: str, timeout: float = 10.0) -> list[VideoEntry]:
-    response = requests.get(
-        FEED_URL,
-        params={"channel_id": channel_id},
-        headers={"User-Agent": USER_AGENT},
-        timeout=timeout,
-    )
-    response.raise_for_status()
-    return parse_feed(response.text)
+def fetch_channel_feed(
+    channel_id: str,
+    timeout: float = 10.0,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> list[VideoEntry]:
+    for attempt in range(1, FEED_MAX_ATTEMPTS + 1):
+        try:
+            response = requests.get(
+                FEED_URL,
+                params={"channel_id": channel_id},
+                headers={"User-Agent": USER_AGENT},
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            return parse_feed(response.text)
+        except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as exc:
+            status = exc.response.status_code if isinstance(exc, requests.HTTPError) else None
+            retryable = not isinstance(exc, requests.HTTPError) or status in RETRYABLE_STATUS_CODES
+            if not retryable or attempt == FEED_MAX_ATTEMPTS:
+                raise
+            backoff = FEED_RETRY_BASE_SECONDS * (2 ** (attempt - 1))
+            logger.warning(
+                "Feed fetch attempt %d/%d failed for %s: %s (retrying in %ds)",
+                attempt,
+                FEED_MAX_ATTEMPTS,
+                channel_id,
+                exc,
+                backoff,
+            )
+            sleep_fn(backoff)
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 def parse_feed(xml_text: str) -> list[VideoEntry]:

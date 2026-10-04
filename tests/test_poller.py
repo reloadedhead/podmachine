@@ -183,6 +183,45 @@ def test_backoff_expires_and_polling_resumes(tmp_path):
     assert calls == [CHANNEL.id]
 
 
+def test_expired_backoff_resets_failure_state_so_one_failure_does_not_rebackoff(tmp_path):
+    conn = make_conn(tmp_path)
+    past = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    conn.execute(
+        "INSERT INTO channel_state (slug, channel_id, baseline_established, consecutive_poll_failures, "
+        "backed_off_until, last_poll_error) VALUES (?, ?, 1, ?, ?, ?)",
+        (CHANNEL.slug, CHANNEL.id, CIRCUIT_BREAKER_THRESHOLD, past, "404 Not Found"),
+    )
+    conn.commit()
+
+    def failing_fetch(channel_id):
+        raise RuntimeError("boom")
+
+    poll_channel(conn, CHANNEL, fetch=failing_fetch)
+
+    row = channel_state_row(conn, CHANNEL.slug)
+    assert row["consecutive_poll_failures"] == 1
+    assert row["backed_off_until"] is None
+    assert row["last_poll_error"] == "boom"
+
+
+def test_expired_backoff_clears_stale_state_even_when_poll_succeeds(tmp_path):
+    conn = make_conn(tmp_path)
+    past = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    conn.execute(
+        "INSERT INTO channel_state (slug, channel_id, baseline_established, consecutive_poll_failures, "
+        "backed_off_until, last_poll_error) VALUES (?, ?, 1, ?, ?, ?)",
+        (CHANNEL.slug, CHANNEL.id, CIRCUIT_BREAKER_THRESHOLD, past, "404 Not Found"),
+    )
+    conn.commit()
+
+    poll_channel(conn, CHANNEL, fetch=lambda channel_id: [])
+
+    row = channel_state_row(conn, CHANNEL.slug)
+    assert row["consecutive_poll_failures"] == 0
+    assert row["backed_off_until"] is None
+    assert row["last_poll_error"] is None
+
+
 def test_poll_all_channels_jitters_between_channels_but_not_after_last(tmp_path):
     conn = make_conn(tmp_path)
 

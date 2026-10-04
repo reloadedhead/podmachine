@@ -154,8 +154,11 @@ docker run --rm -v "$(pwd)":/app -w /app python:3.12-slim-bookworm \
   recovery doesn't depend on someone noticing and manually reprocessing.
 - **Per-channel circuit breaker.** A channel that fails to poll 5 times in
   a row (bad channel ID, deleted channel, persistent network issue) is left
-  alone for 2 hours instead of being retried every cycle. Resets
-  automatically on the next successful poll. Visible in `/channels` via
+  alone for 1 hour instead of being retried every cycle. Each feed request
+  is itself retried up to 3 times (2s, 4s backoff) on 404/429/5xx and
+  connection errors first, since YouTube's RSS endpoint returns transient
+  404s for valid channels. The failure count resets on the next successful
+  poll, or when a backoff expires. Visible in `/channels` via
   `consecutive_poll_failures`, `backed_off_until`, and `last_poll_error`.
 - **Politeness.** Channels are polled sequentially with a randomized 1-4s
   gap between them, not in parallel; downloads use a similar gap plus a
