@@ -111,6 +111,14 @@ def test_static_htmx_served_without_auth(client):
     assert response.status_code == 200
 
 
+def test_favicon_linked_and_served_without_auth(client):
+    page = client.get("/admin/", auth=("admin", "secret123"))
+    for href in ("/static/favicon.svg", "/static/favicon-32.png", "/static/apple-touch-icon.png"):
+        assert f'href="{href}"' in page.text
+        # Browsers fetch icons without the Basic-auth credentials.
+        assert client.get(href).status_code == 200
+
+
 def test_json_channels_endpoint_still_unauthenticated(client):
     response = client.get("/channels")
     assert response.status_code == 200

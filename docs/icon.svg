@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="podmachine icon: a glowing waveform on a recessed screen inside a chrome capsule bezel">
+<defs>
+<linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#7068FA"/>
+<stop offset="0.5" stop-color="#4F46E5"/>
+<stop offset="1" stop-color="#352DB0"/>
+</linearGradient>
+<linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.38"/>
+<stop offset="1" stop-color="#FFFFFF" stop-opacity="0.03"/>
+</linearGradient>
+<linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#FFFFFF"/>
+<stop offset="0.28" stop-color="#C9CDDB"/>
+<stop offset="0.52" stop-color="#7F849A"/>
+<stop offset="0.75" stop-color="#D5D8E4"/>
+<stop offset="1" stop-color="#F4F5FA"/>
+</linearGradient>
+<linearGradient id="ring" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#3A3D55"/>
+<stop offset="1" stop-color="#C3C7D6"/>
+</linearGradient>
+<linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#0B0828"/>
+<stop offset="1" stop-color="#1D1A58"/>
+</linearGradient>
+<linearGradient id="led" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#FFFFFF"/>
+<stop offset="1" stop-color="#A5B4FC"/>
+</linearGradient>
+<linearGradient id="refl" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.26"/>
+<stop offset="1" stop-color="#FFFFFF" stop-opacity="0.02"/>
+</linearGradient>
+<clipPath id="screenClip"><rect x="76" y="156" width="360" height="200" rx="100"/></clipPath>
+<filter id="bezelShadow" filterUnits="userSpaceOnUse" x="-40" y="-40" width="592" height="592">
+<feDropShadow dx="0" dy="12" stdDeviation="9" flood-color="#0B0830" flood-opacity="0.65"/>
+</filter>
+<filter id="glow" filterUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+<feGaussianBlur stdDeviation="7"/>
+</filter>
+<filter id="grain" filterUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+<feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="7"/>
+<feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.5 -0.12"/>
+</filter>
+<g id="leds">
+<rect x="129" y="236" width="26" height="40" rx="13"/>
+<rect x="167" y="214" width="26" height="84" rx="13"/>
+<rect x="205" y="196" width="26" height="120" rx="13"/>
+<rect x="243" y="186" width="26" height="140" rx="13"/>
+<rect x="281" y="208" width="26" height="96" rx="13"/>
+<rect x="319" y="225" width="26" height="62" rx="13"/>
+<rect x="357" y="237" width="26" height="38" rx="13"/>
+</g>
+</defs>
+
+<rect width="512" height="512" fill="url(#tile)"/>
+<rect width="512" height="512" filter="url(#grain)" opacity="0.5"/>
+<path d="M0 0 H512 V196 Q256 276 0 196 Z" fill="url(#gloss)"/>
+
+<rect x="56" y="136" width="400" height="240" rx="120" fill="url(#chrome)" filter="url(#bezelShadow)"/>
+<rect x="58" y="138" width="396" height="236" rx="118" fill="none" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2"/>
+<rect x="70" y="150" width="372" height="212" rx="106" fill="url(#ring)"/>
+
+<rect x="76" y="156" width="360" height="200" rx="100" fill="url(#screen)"/>
+<g clip-path="url(#screenClip)">
+<rect x="76" y="156" width="360" height="200" rx="100" fill="none" stroke="#000000" stroke-opacity="0.7" stroke-width="12"/>
+<g filter="url(#glow)" fill="#818CF8" opacity="0.95"><use href="#leds"/></g>
+<g fill="url(#led)"><use href="#leds"/></g>
+<path d="M76 156 H436 V236 Q256 290 76 236 Z" fill="url(#refl)"/>
+</g>
+</svg>

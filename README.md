@@ -1,4 +1,8 @@
-# podmachine
+<p align="center">
+  <img src="docs/icon.svg" alt="podmachine icon" width="160" height="160">
+</p>
+
+<h1 align="center">podmachine</h1>
 
 Follows YouTube channels, downloads new uploads as audio, tags them, and serves
 a podcast RSS feed per channel to any podcast app on your local network.
