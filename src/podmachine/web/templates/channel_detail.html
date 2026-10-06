@@ -2,13 +2,22 @@
 {% block title %}{{ channel.name }} — podmachine admin{% endblock %}
 {% block content %}
   <a href="/admin/" class="back-link">&larr; back to channels</a>
-  <div class="page-head">
-    <div class="channel-heading">
-      <img class="avatar avatar-lg" src="/artwork/{{ channel.slug }}.jpg" alt="" onerror="this.remove()">
-      <h1>{{ channel.name }}</h1>
+  <section class="card profile-card">
+    <div class="profile-head">
+      <img class="avatar avatar-xl" src="/artwork/{{ channel.slug }}.jpg" alt="" onerror="this.remove()">
+      <div class="profile-id">
+        <h1>{{ channel.name }}</h1>
+        <p class="chips">
+          <span class="chip">slug <code>{{ channel.slug }}</code></span>
+          <span class="chip">YouTube ID <code>{{ channel.id }}</code></span>
+        </p>
+      </div>
+      <button type="button" class="btn btn-copy" data-copy-text="{{ feed_url }}" onclick="copyToClipboard(this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a9 9 0 0 1 9 9M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+        <span class="btn-label">Copy podcast URL</span>
+      </button>
     </div>
-    <button type="button" class="btn" data-copy-text="{{ feed_url }}" onclick="copyToClipboard(this)">Copy podcast URL</button>
-  </div>
-  {% include "partials/channel_meta.html" %}
+    {% include "partials/channel_meta.html" %}
+  </section>
   {% include "partials/video_table.html" %}
 {% endblock %}

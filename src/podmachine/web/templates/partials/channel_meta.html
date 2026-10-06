@@ -1,32 +1,36 @@
-<div id="channel-meta" class="card">
-  {% if error %}<p class="err">{{ error }}</p>{% endif %}
-  <p class="meta">slug: <code>{{ channel.slug }}</code> · YouTube channel ID: <code>{{ channel.id }}</code></p>
-  <form hx-post="/admin/channels/{{ channel.slug }}/category" hx-target="#channel-meta" hx-swap="outerHTML"
-        class="category-form">
-    <label>Category
-      <select name="category">
+<form id="channel-meta" class="settings-form" hx-post="/admin/channels/{{ channel.slug }}/settings"
+      hx-target="#channel-meta" hx-swap="outerHTML"
+      data-global-strategy="{{ default_retention.strategy }}"
+      data-global-keep-latest="{{ default_retention.keep_latest or '' }}">
+  {% if error %}<p class="err settings-error">{{ error }}</p>{% endif %}
+  <div class="settings-grid">
+    <div class="field">
+      <label for="channel-category">Category</label>
+      <select id="channel-category" name="category">
         {% for cat in categories %}
         <option value="{{ cat }}" {% if cat == channel.category %}selected{% endif %}>{{ cat }}</option>
         {% endfor %}
       </select>
-    </label>
-    <button type="submit" class="btn btn-primary">Save</button>
-  </form>
-  <form hx-post="/admin/channels/{{ channel.slug }}/retention" hx-target="#channel-meta" hx-swap="outerHTML"
-        class="retention-form" data-global-strategy="{{ default_retention.strategy }}"
-        data-global-keep-latest="{{ default_retention.keep_latest or '' }}">
-    <label>Retention
-      <select name="strategy">
+      <p class="field-hint">How podcast apps file this feed.</p>
+    </div>
+    <div class="field">
+      <label for="channel-retention">Retention</label>
+      <select id="channel-retention" name="strategy">
         <option value="" {% if not channel.retention %}selected{% endif %}>use global default</option>
         <option value="none" {% if channel.retention and channel.retention.strategy == 'none' %}selected{% endif %}>none (keep all)</option>
         <option value="count" {% if channel.retention and channel.retention.strategy == 'count' %}selected{% endif %}>count</option>
       </select>
-    </label>
-    <label class="keep-latest-field">Keep latest
-      <input type="number" name="keep_latest" min="1"
-             value="{{ channel.retention.keep_latest if channel.retention and channel.retention.keep_latest else '' }}">
-    </label>
-    <span class="retention-description hint-inline"></span>
-    <button type="submit" class="btn btn-primary">Save</button>
-  </form>
-</div>
+      <div class="keep-latest-field">
+        <label for="channel-keep-latest">Keep latest</label>
+        <input id="channel-keep-latest" type="number" name="keep_latest" min="1"
+               value="{{ channel.retention.keep_latest if channel.retention and channel.retention.keep_latest else '' }}">
+        <span>episodes</span>
+      </div>
+      <p class="field-hint retention-description"></p>
+    </div>
+  </div>
+  <div class="settings-footer">
+    <span class="settings-status" aria-live="polite">No unsaved changes</span>
+    <button type="submit" class="btn btn-primary" disabled>Save settings</button>
+  </div>
+</form>

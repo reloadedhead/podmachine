@@ -47,41 +47,56 @@
     document.addEventListener("DOMContentLoaded", localizeDates);
     document.body.addEventListener("htmx:afterSettle", localizeDates);
 
-    // Per-channel retention form: only the "count" strategy needs the
-    // number input, and picking "use global default" or "none" can just
-    // say in words what that means instead — no server round-trip needed
-    // for this, it's a pure client-side description of the selected option.
-    function initRetentionForms() {
-      document.querySelectorAll(".retention-form[data-global-strategy]").forEach(function (form) {
+    // Channel settings form: only the "count" retention strategy needs the
+    // number input, and the other options can just say in words what they
+    // mean instead. Save stays disabled until something actually changed.
+    // All pure client-side; the server only sees the final POST.
+    function initSettingsForms() {
+      document.querySelectorAll("form[data-global-strategy]").forEach(function (form) {
+        if (form.dataset.ready) return;
+        form.dataset.ready = "1";
+
         var select = form.querySelector('select[name="strategy"]');
+        var keepLatest = form.querySelector('input[name="keep_latest"]');
         var keepLatestField = form.querySelector(".keep-latest-field");
         var description = form.querySelector(".retention-description");
-        if (!select) return;
-
+        var status = form.querySelector(".settings-status");
+        var save = form.querySelector('button[type="submit"]');
         var globalStrategy = form.dataset.globalStrategy;
         var globalKeepLatest = form.dataset.globalKeepLatest;
 
-        function update() {
-          var value = select.value;
-          if (keepLatestField) keepLatestField.classList.toggle("is-hidden", value !== "count");
-          if (!description) return;
-          if (value === "count") {
-            description.textContent = "";
-          } else if (value === "none") {
-            description.textContent = "Keeps all episodes.";
-          } else if (globalStrategy === "count") {
-            description.textContent = "Keeps the " + globalKeepLatest + " latest episodes.";
-          } else {
-            description.textContent = "Keeps all episodes.";
+        function serialize() {
+          return new URLSearchParams(new FormData(form)).toString();
+        }
+        var initial = serialize();
+
+        function describe(strategy, keep) {
+          if (strategy === "count") {
+            return keep ? "Keeps the " + keep + " latest episodes." : "Enter how many episodes to keep.";
           }
+          if (strategy === "") {
+            return globalStrategy === "count"
+              ? "Keeps the " + globalKeepLatest + " latest episodes."
+              : "Keeps all episodes.";
+          }
+          return "Keeps all episodes.";
         }
 
-        select.addEventListener("change", update);
+        function update() {
+          keepLatestField.classList.toggle("is-hidden", select.value !== "count");
+          description.textContent = describe(select.value, keepLatest.value);
+          var dirty = serialize() !== initial;
+          save.disabled = !dirty;
+          status.textContent = dirty ? "Unsaved changes" : "No unsaved changes";
+        }
+
+        form.addEventListener("input", update);
+        form.addEventListener("change", update);
         update();
       });
     }
-    document.addEventListener("DOMContentLoaded", initRetentionForms);
-    document.body.addEventListener("htmx:afterSettle", initRetentionForms);
+    document.addEventListener("DOMContentLoaded", initSettingsForms);
+    document.body.addEventListener("htmx:afterSettle", initSettingsForms);
 
     // "Add channel" dialog: close and reset it on a successful submit
     // (channel_table.html has already picked up the new row via its own
@@ -104,10 +119,12 @@
     // fall back to the old execCommand("copy") trick via a hidden textarea.
     function copyToClipboard(button) {
       var text = button.dataset.copyText;
-      var original = button.textContent;
+      // Buttons may carry an icon next to the text; only swap the label.
+      var label = button.querySelector(".btn-label") || button;
+      var original = label.textContent;
       function showCopied() {
-        button.textContent = "Copied!";
-        setTimeout(function () { button.textContent = original; }, 1500);
+        label.textContent = "Copied!";
+        setTimeout(function () { label.textContent = original; }, 1500);
       }
       function legacyCopy() {
         var textarea = document.createElement("textarea");
