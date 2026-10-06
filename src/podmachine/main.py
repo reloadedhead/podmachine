@@ -20,6 +20,7 @@ from podmachine.processor import process_pending_videos
 from podmachine.queries import channel_status_rows
 from podmachine.scheduler import run_cycle, start_scheduler
 from podmachine.settings import import_default_retention_from_config_if_unset
+from podmachine.sync import SyncManager
 from podmachine.web.routes import router as admin_router
 
 logging.basicConfig(
@@ -33,6 +34,7 @@ logger = logging.getLogger("podmachine")
 async def lifespan(app: FastAPI):
     config = load_config()
     app.state.config = config
+    app.state.sync = SyncManager()
     app.state.db_path = config.data_dir / "podmachine.sqlite3"
     init_db(app.state.db_path)
     conn = connect(app.state.db_path)

@@ -17,6 +17,9 @@ logger = logging.getLogger("podmachine.processor")
 DownloadFn = Callable[[str, str, Path], DownloadResult]
 TagFn = Callable[..., None]
 SleepFn = Callable[[float], None]
+# Called with (row, index, total, result) around each download: result is
+# None just before the episode starts, the ProcessResult once it has finished.
+ProcessProgressFn = Callable[[sqlite3.Row, int, int, "ProcessResult | None"], None]
 
 # YouTube-side 403s are often transient (confirmed by hand during Phase 2
 # testing: an immediate manual retry succeeded). Retry a few times with
@@ -45,6 +48,7 @@ def process_pending_videos(
     download_fn: DownloadFn = download_audio,
     tag_fn: TagFn = tag_audio_file,
     sleep_fn: SleepFn = time.sleep,
+    progress: ProcessProgressFn | None = None,
 ) -> list[ProcessResult]:
     rows = conn.execute(
         "SELECT video_id, channel_slug, title, published_at FROM videos WHERE status = 'pending'"
@@ -52,7 +56,12 @@ def process_pending_videos(
 
     results = []
     for i, row in enumerate(rows):
-        results.append(_process_one(conn, row, media_dir, channel_names, download_fn, tag_fn, sleep_fn))
+        if progress:
+            progress(row, i, len(rows), None)
+        result = _process_one(conn, row, media_dir, channel_names, download_fn, tag_fn, sleep_fn)
+        results.append(result)
+        if progress:
+            progress(row, i, len(rows), result)
         if i < len(rows) - 1:
             sleep_fn(random.uniform(DOWNLOAD_JITTER_MIN_SECONDS, DOWNLOAD_JITTER_MAX_SECONDS))
     return results

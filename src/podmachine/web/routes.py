@@ -22,7 +22,6 @@ from podmachine.channels import (
 )
 from podmachine.config import ChannelConfig, ITUNES_CATEGORIES, RetentionConfig
 from podmachine.db import connect
-from podmachine.poller import poll_all_channels
 from podmachine.processor import process_pending_videos, retry_video
 from podmachine.queries import channel_status_rows, channel_videos
 from podmachine.retention import delete_episode
@@ -32,7 +31,12 @@ from podmachine.youtube import fetch_channel_name
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 
-templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+def _sync_context(request: Request) -> dict:
+    # One snapshot per render, so a response's partials all agree.
+    return {"sync": request.app.state.sync.snapshot()}
+
+
+templates = Jinja2Templates(directory=Path(__file__).parent / "templates", context_processors=[_sync_context])
 
 
 def _find_channel(conn: sqlite3.Connection, slug: str) -> ChannelConfig:
@@ -307,24 +311,29 @@ def action_queue_video(request: Request, slug: str, video_id: str) -> HTMLRespon
     return templates.TemplateResponse(request, "partials/video_table.html", {"channel": channel, "videos": videos})
 
 
-@router.post("/actions/poll", response_class=HTMLResponse)
-def action_poll(request: Request) -> HTMLResponse:
+def _sync_update(request: Request) -> HTMLResponse:
+    """Strip + button + table, all rendered from one sync snapshot."""
     conn = connect(request.app.state.db_path)
     try:
-        channels = list_channels(conn)
-        poll_all_channels(conn, channels)
-        rows = channel_status_rows(conn, channels)
-    finally:
-        conn.close()
-    return templates.TemplateResponse(request, "partials/channel_table.html", {"channels": rows, "error": None})
-
-
-@router.post("/actions/process", response_class=HTMLResponse)
-def action_process(request: Request) -> HTMLResponse:
-    conn = connect(request.app.state.db_path)
-    try:
-        _process_pending_now(conn, request.app.state.config)
         rows = channel_status_rows(conn, list_channels(conn))
     finally:
         conn.close()
-    return templates.TemplateResponse(request, "partials/channel_table.html", {"channels": rows, "error": None})
+    return templates.TemplateResponse(request, "partials/sync_update.html", {"channels": rows, "error": None})
+
+
+@router.post("/actions/sync", response_class=HTMLResponse)
+def action_sync(request: Request) -> HTMLResponse:
+    # No-op if a sync is already running: the response just shows its progress.
+    request.app.state.sync.start(request.app.state.config, request.app.state.db_path)
+    return _sync_update(request)
+
+
+@router.get("/partials/sync", response_class=HTMLResponse)
+def sync_progress(request: Request) -> HTMLResponse:
+    return _sync_update(request)
+
+
+@router.post("/actions/sync/dismiss", response_class=HTMLResponse)
+def action_dismiss_sync(request: Request) -> HTMLResponse:
+    request.app.state.sync.dismiss()
+    return _sync_update(request)
