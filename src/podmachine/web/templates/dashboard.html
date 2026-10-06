@@ -4,14 +4,12 @@
   <div class="page-head">
     <h1>Channels</h1>
     <div class="actions">
-      <button class="btn" hx-post="/admin/actions/poll" hx-target="#channel-table" hx-swap="outerHTML"
-              hx-indicator="#busy" hx-disabled-elt="this">Poll now</button>
-      <button class="btn" hx-post="/admin/actions/process" hx-target="#channel-table" hx-swap="outerHTML"
-              hx-indicator="#busy" hx-disabled-elt="this">Process now</button>
-      <span id="busy" class="htmx-indicator">Working…</span>
-      <button type="button" class="btn btn-primary" onclick="document.getElementById('add-channel-dialog').showModal()">Add channel</button>
+      {% include "partials/sync_controls.html" %}
+      <button type="button" class="btn btn-primary btn-lg" onclick="document.getElementById('add-channel-dialog').showModal()">Add channel</button>
     </div>
   </div>
+
+  {% include "partials/sync_strip.html" %}
 
   {% include "partials/channel_table.html" %}
 

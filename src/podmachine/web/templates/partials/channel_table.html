@@ -1,4 +1,4 @@
-<div id="channel-table" class="card table-card" hx-get="/admin/partials/channels" hx-trigger="every 15s" hx-swap="outerHTML">
+<div id="channel-table" class="card table-card" hx-get="/admin/partials/channels" hx-trigger="every 15s" hx-swap="outerHTML" {% if oob %}hx-swap-oob="true"{% endif %}>
   {% if error %}<p class="err">{{ error }}</p>{% endif %}
   <table>
     <colgroup>
@@ -27,7 +27,19 @@
           </div>
         </td>
         <td data-label="Status">
-          {% if c.backed_off_until %}
+          {% set live = sync.channels.get(c.slug) %}
+          {% if live and (sync.running or live.state == 'failed') %}
+            {# While a manual sync runs (or if it couldn't check this channel) the badge shows what it's doing. #}
+            {% if live.state in ('checking', 'downloading') %}
+            <span class="badge badge-active"><span class="spinner spinner-sm" aria-hidden="true"></span>{{ live.label }}…</span>
+            {% elif live.state in ('checked', 'downloaded') %}
+            <span class="badge badge-ok">{{ live.label }}</span>
+            {% elif live.state == 'failed' %}
+            <span class="badge badge-error">{{ live.label }}</span>
+            {% else %}
+            <span class="badge badge-muted">{{ live.label }}</span>
+            {% endif %}
+          {% elif c.backed_off_until %}
             <span class="badge badge-error">backed off</span>
           {% elif not c.baseline_established %}
             <span class="badge badge-warn">establishing baseline</span>

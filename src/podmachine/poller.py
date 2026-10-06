@@ -16,6 +16,9 @@ logger = logging.getLogger("podmachine.poller")
 
 FetchFn = Callable[[str], list[VideoEntry]]
 SleepFn = Callable[[float], None]
+# Called with (channel, index, total, result) around each channel's poll:
+# result is None just before the channel is polled, the PollResult after.
+PollProgressFn = Callable[["ChannelConfig", int, int, "PollResult | None"], None]
 
 # A channel that fails to poll this many times in a row (bad channel ID,
 # deleted channel, persistent network issue) gets left alone for a while
@@ -121,10 +124,16 @@ def poll_all_channels(
     channels: list[ChannelConfig],
     fetch: FetchFn = fetch_channel_feed,
     sleep_fn: SleepFn = time.sleep,
+    progress: PollProgressFn | None = None,
 ) -> list[PollResult]:
     results = []
     for i, channel in enumerate(channels):
-        results.append(poll_channel(conn, channel, fetch=fetch))
+        if progress:
+            progress(channel, i, len(channels), None)
+        result = poll_channel(conn, channel, fetch=fetch)
+        results.append(result)
+        if progress:
+            progress(channel, i, len(channels), result)
         if i < len(channels) - 1:
             sleep_fn(random.uniform(POLL_JITTER_MIN_SECONDS, POLL_JITTER_MAX_SECONDS))
     return results

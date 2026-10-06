@@ -265,3 +265,29 @@ def test_jitter_sleeps_between_downloads_but_not_after_the_last(tmp_path):
     # 3 videos -> 2 gaps between them, none after the last one
     assert len(sleeps) == 2
     assert all(1.0 <= s <= 3.0 for s in sleeps)
+
+
+def test_process_pending_videos_reports_progress_before_and_after_each_download(tmp_path):
+    conn = make_conn(tmp_path)
+    seed_video(conn, "vid1")
+    seed_video(conn, "vid2")
+    events = []
+
+    def fake_download(video_id, channel_slug, media_dir):
+        out_dir = media_dir / channel_slug
+        out_dir.mkdir(parents=True, exist_ok=True)
+        f = out_dir / f"{video_id}.mp3"
+        f.write_bytes(b"fake-audio")
+        return DownloadResult(video_id=video_id, success=True, file_path=f, file_size=10, info={})
+
+    process_pending_videos(
+        conn,
+        tmp_path / "media",
+        {"chan": "Chan"},
+        download_fn=fake_download,
+        tag_fn=lambda *a, **kw: None,
+        sleep_fn=no_sleep,
+        progress=lambda row, i, total, result: events.append((row["video_id"], i, total, result is None)),
+    )
+
+    assert events == [("vid1", 0, 2, True), ("vid1", 0, 2, False), ("vid2", 1, 2, True), ("vid2", 1, 2, False)]

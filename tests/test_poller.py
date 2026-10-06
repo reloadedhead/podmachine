@@ -233,3 +233,22 @@ def test_poll_all_channels_jitters_between_channels_but_not_after_last(tmp_path)
     # 2 channels -> 1 gap between them, none after the last one
     assert len(sleeps) == 1
     assert 1.0 <= sleeps[0] <= 4.0
+
+
+def test_poll_all_channels_reports_progress_before_and_after_each_channel(tmp_path):
+    conn = make_conn(tmp_path)
+    channels = [
+        ChannelConfig(id="UC1", name="One", slug="one", category="Comedy"),
+        ChannelConfig(id="UC2", name="Two", slug="two", category="Comedy"),
+    ]
+    events = []
+
+    poll_all_channels(
+        conn,
+        channels,
+        fetch=lambda channel_id: [],
+        sleep_fn=lambda s: None,
+        progress=lambda channel, i, total, result: events.append((channel.slug, i, total, result is None)),
+    )
+
+    assert events == [("one", 0, 2, True), ("one", 0, 2, False), ("two", 1, 2, True), ("two", 1, 2, False)]

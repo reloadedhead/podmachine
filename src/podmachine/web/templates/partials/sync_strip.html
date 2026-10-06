@@ -1,0 +1,51 @@
+{# Progress / result of the manual sync. While one runs it re-polls itself every second. #}
+{% if sync.running %}
+{% set processing = sync.phase == 'processing' %}
+<section id="sync-strip" class="sync-strip" aria-busy="true"
+         hx-get="/admin/partials/sync" hx-trigger="every 1s" hx-swap="outerHTML">
+  <div class="sync-strip-main">
+    <span class="sync-icon"><span class="spinner spinner-lg" aria-hidden="true"></span></span>
+    <div class="sync-text">
+      <div class="sync-title">{% if processing %}Downloading new episodes{% else %}Checking channels for new episodes{% endif %}</div>
+      <div class="sync-detail">{{ sync.current or "Starting…" }}</div>
+    </div>
+    <ol class="sync-steps">
+      <li class="{{ 'is-done' if processing else 'is-active' }}">
+        {% if processing %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>{% endif %}
+        1 · Check channels
+      </li>
+      <li class="{{ 'is-active' if processing }}">2 · Download episodes</li>
+    </ol>
+  </div>
+  <div class="sync-progress">
+    <div class="sync-track"><div id="sync-bar" class="sync-bar" style="width: {{ sync.percent }}%"></div></div>
+    <span class="sync-count">{{ [sync.done + 1, sync.total] | min }} / {{ sync.total }}</span>
+  </div>
+</section>
+{% elif sync.phase == 'done' %}
+<section id="sync-strip" class="sync-strip sync-result {{ 'is-error' if sync.has_errors else 'is-ok' }}" role="status">
+  <div class="sync-strip-main">
+    <span class="sync-icon">
+      {% if sync.has_errors %}
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5"/><path d="M12 17h.01"/><path d="M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+      {% else %}
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+      {% endif %}
+    </span>
+    <div class="sync-text">
+      <div class="sync-title">{{ sync.summary_title }}</div>
+      <div class="sync-detail">{{ sync.summary_detail }}</div>
+    </div>
+    <div class="sync-result-actions">
+      {% if sync.has_errors %}
+      <button type="button" class="btn" hx-post="/admin/actions/sync" hx-target="#sync-strip" hx-swap="outerHTML"
+              hx-disabled-elt="this">Try again</button>
+      {% endif %}
+      <button type="button" class="btn" hx-post="/admin/actions/sync/dismiss" hx-target="#sync-strip"
+              hx-swap="outerHTML" hx-disabled-elt="this">Dismiss</button>
+    </div>
+  </div>
+</section>
+{% else %}
+<div id="sync-strip"></div>
+{% endif %}

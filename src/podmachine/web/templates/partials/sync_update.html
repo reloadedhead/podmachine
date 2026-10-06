@@ -1,0 +1,6 @@
+{# Response to every sync request: the strip replaces #sync-strip; the button
+   and the table ride along as out-of-band swaps so one poll refreshes all three. #}
+{% include "partials/sync_strip.html" %}
+{% set oob = true %}
+{% include "partials/sync_controls.html" %}
+{% include "partials/channel_table.html" %}

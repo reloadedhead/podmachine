@@ -7,6 +7,7 @@ import podmachine.main
 import pytest
 from fastapi.testclient import TestClient
 
+from podmachine.config import ChannelConfig
 from podmachine.db import connect
 from podmachine.main import app
 
@@ -82,28 +83,70 @@ def test_channel_detail_renders(client):
     assert "http://podmachine.local:8000/feeds/example-channel.xml" in response.text
 
 
-def test_action_poll_triggers_poll_and_returns_updated_fragment(client, monkeypatch):
-    calls = []
-    monkeypatch.setattr(
-        "podmachine.web.routes.poll_all_channels",
-        lambda conn, channels: calls.append(channels) or [],
-    )
-    response = client.post("/admin/actions/poll", auth=("admin", "secret123"))
+def test_dashboard_has_one_sync_button_and_no_poll_or_process_buttons(client):
+    response = client.get("/admin/", auth=("admin", "secret123"))
+    assert 'hx-post="/admin/actions/sync"' in response.text
+    assert "Sync now" in response.text
+    assert "Poll now" not in response.text
+    assert "Process now" not in response.text
+
+
+def test_action_sync_starts_a_sync_and_returns_the_progress_fragment(client, monkeypatch):
+    started = []
+
+    def fake_start(config, db_path):
+        started.append(db_path)
+        return client.app.state.sync._begin()
+
+    monkeypatch.setattr(client.app.state.sync, "start", fake_start)
+    response = client.post("/admin/actions/sync", auth=("admin", "secret123"))
     assert response.status_code == 200
-    assert len(calls) == 1
+    assert len(started) == 1
+    # Strip that keeps polling itself, plus the button and table swapped out-of-band.
+    assert 'id="sync-strip"' in response.text
+    assert 'hx-get="/admin/partials/sync"' in response.text
+    assert "Checking channels for new episodes" in response.text
+    assert 'id="sync-controls"' in response.text and 'hx-swap-oob="true"' in response.text
     assert 'id="channel-table"' in response.text
 
 
-def test_action_process_triggers_processing_and_returns_updated_fragment(client, monkeypatch):
-    calls = []
-    monkeypatch.setattr(
-        "podmachine.web.routes.process_pending_videos",
-        lambda conn, media_dir, channel_names: calls.append(channel_names) or [],
-    )
-    response = client.post("/admin/actions/process", auth=("admin", "secret123"))
+def test_sync_progress_shows_per_channel_badges_while_running(client):
+    manager = client.app.state.sync
+    manager._begin()
+    manager._on_poll(ChannelConfig(id="UC1", name="Example Channel", slug="example-channel", category="Comedy"), 0, None)
+
+    response = client.get("/admin/partials/sync", auth=("admin", "secret123"))
+    assert "badge-active" in response.text
+    assert "checking…" in response.text
+    assert "Syncing…" in response.text
+    assert "disabled" in response.text
+
+
+def test_sync_progress_is_idle_when_nothing_runs(client):
+    response = client.get("/admin/partials/sync", auth=("admin", "secret123"))
     assert response.status_code == 200
-    assert len(calls) == 1
-    assert 'id="channel-table"' in response.text
+    assert '<div id="sync-strip"></div>' in response.text
+    assert "Sync now" in response.text
+
+
+def test_finished_sync_shows_summary_until_dismissed(client):
+    manager = client.app.state.sync
+    manager._begin()
+    manager._run(client.app.state.config, client.app.state.db_path, fetch_fn=lambda cid: [], sleep_fn=lambda s: None)
+
+    response = client.get("/admin/", auth=("admin", "secret123"))
+    assert "Sync complete" in response.text
+    assert "No new episodes." in response.text
+
+    response = client.post("/admin/actions/sync/dismiss", auth=("admin", "secret123"))
+    assert response.status_code == 200
+    assert "Sync complete" not in response.text
+
+
+def test_sync_endpoints_require_auth(client):
+    assert client.post("/admin/actions/sync").status_code == 401
+    assert client.get("/admin/partials/sync").status_code == 401
+    assert client.post("/admin/actions/sync/dismiss").status_code == 401
 
 
 def test_static_htmx_served_without_auth(client):
