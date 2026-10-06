@@ -9,7 +9,11 @@
         <h1>{{ channel.name }}</h1>
         <p class="chips">
           <span class="chip">slug <code>{{ channel.slug }}</code></span>
+          {% if channel.is_playlist %}
+          <span class="chip">Playlist <a href="https://www.youtube.com/playlist?list={{ channel.id }}"><code>{{ channel.id }}</code></a></span>
+          {% else %}
           <span class="chip">YouTube ID <code>{{ channel.id }}</code></span>
+          {% endif %}
         </p>
       </div>
       <button type="button" class="btn btn-copy" data-copy-text="{{ feed_url }}" onclick="copyToClipboard(this)">

@@ -84,6 +84,32 @@ def test_channel_detail_renders(client):
     assert "http://podmachine.local:8000/feeds/example-channel.xml" in response.text
 
 
+def _mark_baseline_established(client, slug):
+    conn = connect(client.app.state.db_path)
+    conn.execute(
+        "INSERT INTO channel_state (slug, channel_id, baseline_established) VALUES (?, 'UC1', 1)", (slug,)
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_baseline_indicators_shown_until_established(client):
+    auth = ("admin", "secret123")
+    dashboard = client.get("/admin/", auth=auth)
+    assert "badge-loading" in dashboard.text
+    detail = client.get("/admin/channels/example-channel", auth=auth)
+    assert "Waiting to establish baseline" in detail.text
+    assert "This channel" in detail.text
+
+    _mark_baseline_established(client, "example-channel")
+
+    assert "badge-loading" not in client.get("/admin/", auth=auth).text
+    detail = client.get("/admin/channels/example-channel", auth=auth)
+    assert "baseline-notice" not in detail.text
+    partial = client.get("/admin/partials/channels/example-channel/videos", auth=auth)
+    assert "baseline-notice" not in partial.text
+
+
 def test_dashboard_has_one_sync_button_and_no_poll_or_process_buttons(client):
     response = client.get("/admin/", auth=("admin", "secret123"))
     assert 'hx-post="/admin/actions/sync"' in response.text
@@ -411,6 +437,32 @@ def test_action_add_channel_manual_name_and_slug_skip_fetch(client, monkeypatch)
     )
     assert response.status_code == 200
     assert "Manual Name" in response.text
+
+
+def test_action_add_playlist_from_url(client, monkeypatch):
+    def unexpected_channel_fetch(channel_id):
+        raise AssertionError("fetch_channel_name should not be called for a playlist")
+
+    monkeypatch.setattr("podmachine.web.routes.fetch_channel_name", unexpected_channel_fetch)
+    monkeypatch.setattr("podmachine.web.routes.fetch_playlist_name", lambda playlist_id: "Best Bits")
+    response = client.post(
+        "/admin/channels",
+        data={"channel_id": "https://www.youtube.com/playlist?list=PLbest", "category": "Comedy"},
+        auth=("admin", "secret123"),
+    )
+    assert response.status_code == 200
+    assert "Best Bits" in response.text
+    assert "playlist" in response.text
+
+    detail = client.get("/admin/channels/best-bits", auth=("admin", "secret123"))
+    assert "PLbest" in detail.text
+
+
+def test_action_add_channel_rejects_unrecognized_input(client):
+    response = client.post(
+        "/admin/channels", data={"channel_id": "@handle", "category": "Comedy"}, auth=("admin", "secret123")
+    )
+    assert response.status_code == 400
 
 
 def test_action_delete_channel_removes_it(client):

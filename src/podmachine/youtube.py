@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from typing import Any, Callable
+from datetime import datetime, timezone
+from typing import Any, Callable, Literal
+from urllib.parse import parse_qs, urlparse
 
 import requests
 import yt_dlp
@@ -21,6 +24,9 @@ logger = logging.getLogger("podmachine.youtube")
 FEED_MAX_ATTEMPTS = 3
 FEED_RETRY_BASE_SECONDS = 2
 RETRYABLE_STATUS_CODES = frozenset({404, 429}) | frozenset(range(500, 600))
+
+# PL: user playlists, OL: albums, UU: a channel's uploads, FL: favourites.
+PLAYLIST_ID_PREFIXES = ("PL", "OL", "UU", "FL")
 
 NAMESPACES = {
     "atom": "http://www.w3.org/2005/Atom",
@@ -93,6 +99,93 @@ def parse_feed(xml_text: str) -> list[VideoEntry]:
             )
         )
     return entries
+
+
+def parse_source(raw: str) -> tuple[Literal["channel", "playlist"], str]:
+    """Turn what the admin pasted (a bare ID, or a channel/playlist URL) into
+    (source_type, youtube_id). Handles (@name) aren't resolved — they need a
+    page fetch to map to a UC… ID."""
+    value = raw.strip()
+    if "://" in value or value.startswith(("www.", "youtube.com", "m.youtube.com")):
+        parsed = urlparse(value if "://" in value else f"https://{value}")
+        playlist_ids = parse_qs(parsed.query).get("list")
+        if playlist_ids:
+            return "playlist", playlist_ids[0]
+        match = re.search(r"/channel/(UC[\w-]+)", parsed.path)
+        if match:
+            return "channel", match.group(1)
+        # /show/VL<id> and /browse/VL<id> pages wrap a playlist ID in "VL".
+        match = re.search(r"/(?:show|browse)/VL([\w-]+)", parsed.path)
+        if match:
+            return "playlist", match.group(1)
+        raise ValueError(f"Couldn't find a channel ID or playlist in {raw!r} — paste a /channel/UC… or playlist URL")
+    if value.startswith("UC"):
+        return "channel", value
+    if value.startswith(PLAYLIST_ID_PREFIXES):
+        return "playlist", value
+    if value.startswith("VL") and value[2:].startswith(PLAYLIST_ID_PREFIXES):
+        return "playlist", value[2:]
+    raise ValueError(f"{raw!r} doesn't look like a channel ID (UC…) or playlist ID (PL…)")
+
+
+def playlist_url(playlist_id: str) -> str:
+    return f"https://www.youtube.com/playlist?list={playlist_id}"
+
+
+def _flat_playlist_info(playlist_id: str, items: str | None = None) -> dict[str, Any]:
+    ydl_opts: dict[str, Any] = {"extract_flat": "in_playlist", "quiet": True, "no_warnings": True}
+    if items is not None:
+        ydl_opts["playlist_items"] = items
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        return ydl.extract_info(playlist_url(playlist_id), download=False) or {}
+
+
+def fetch_playlist_entries(playlist_id: str) -> list[VideoEntry]:
+    """Every video in the playlist, via yt-dlp's flat listing rather than
+    the RSS feed: playlist RSS only returns the first 15 items in playlist
+    order, and most playlists append new videos at the end, so new uploads
+    would never show up there."""
+    return parse_playlist_entries(_flat_playlist_info(playlist_id))
+
+
+def parse_playlist_entries(info: dict[str, Any], now: str | None = None) -> list[VideoEntry]:
+    # Flat entries usually carry no upload date, so discovery time stands in
+    # until the real date is filled in from the download's metadata.
+    fallback_published = now or datetime.now(timezone.utc).isoformat()
+    entries = []
+    for entry in info.get("entries") or []:
+        video_id = entry.get("id")
+        title = entry.get("title")
+        # Deleted/private videos stay listed with placeholder titles and
+        # can't be downloaded.
+        if not video_id or not title or title in ("[Deleted video]", "[Private video]"):
+            continue
+        timestamp = entry.get("timestamp") or entry.get("release_timestamp")
+        published_at = (
+            datetime.fromtimestamp(timestamp, timezone.utc).isoformat() if timestamp else fallback_published
+        )
+        entries.append(
+            VideoEntry(
+                video_id=video_id,
+                title=title,
+                published_at=published_at,
+                url=entry.get("url") or f"https://www.youtube.com/watch?v={video_id}",
+                # A playlist is already a curated selection — don't second-guess it.
+                is_short=False,
+            )
+        )
+    return entries
+
+
+def fetch_playlist_name(playlist_id: str) -> str | None:
+    return _flat_playlist_info(playlist_id, items="0").get("title")
+
+
+def fetch_playlist_avatar_url(playlist_id: str) -> str | None:
+    """The playlist owner's channel avatar — playlists have no avatar of
+    their own, only a thumbnail borrowed from one of their videos."""
+    owner_id = _flat_playlist_info(playlist_id, items="0").get("channel_id")
+    return fetch_channel_avatar_url(owner_id) if owner_id else None
 
 
 def fetch_channel_name(channel_id: str, timeout: float = 10.0) -> str | None:

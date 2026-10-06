@@ -32,6 +32,8 @@ def channel_status_rows(conn: sqlite3.Connection, channels: list[ChannelConfig])
                 "slug": channel.slug,
                 "name": channel.name,
                 "id": channel.id,
+                "source_type": channel.source_type,
+                "is_playlist": channel.is_playlist,
                 "baseline_established": bool(state_row["baseline_established"]) if state_row else False,
                 "last_polled_at": state_row["last_polled_at"] if state_row else None,
                 "consecutive_poll_failures": state_row["consecutive_poll_failures"] if state_row else 0,
@@ -42,6 +44,13 @@ def channel_status_rows(conn: sqlite3.Connection, channels: list[ChannelConfig])
             }
         )
     return rows
+
+
+def baseline_established(conn: sqlite3.Connection, channel_slug: str) -> bool:
+    row = conn.execute(
+        "SELECT baseline_established FROM channel_state WHERE slug = ?", (channel_slug,)
+    ).fetchone()
+    return bool(row["baseline_established"]) if row else False
 
 
 def channel_videos(conn: sqlite3.Connection, channel_slug: str, limit: int = 200) -> list[sqlite3.Row]:

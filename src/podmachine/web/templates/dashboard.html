@@ -17,8 +17,8 @@
     <h2>Add channel</h2>
     <div id="add-channel-error"></div>
     <form hx-post="/admin/channels" hx-target="#channel-table" hx-swap="outerHTML" id="add-channel-form">
-      <label>YouTube channel ID
-        <input type="text" name="channel_id" placeholder="UC..." required>
+      <label>YouTube channel or playlist
+        <input type="text" name="channel_id" placeholder="UC… channel ID, PL… playlist ID, or URL" required>
       </label>
       <label>Display name
         <input type="text" name="name" placeholder="auto-fetched if blank">

@@ -71,6 +71,13 @@ class ChannelConfig(BaseModel):
     # db.py's CHANNEL_COLUMNS.
     category: Literal[*ITUNES_CATEGORIES]
     retention: RetentionConfig | None = None
+    # A "channel" may instead be a single playlist, for when only part of a
+    # YouTube channel is wanted; `id` then holds the playlist ID.
+    source_type: Literal["channel", "playlist"] = "channel"
+
+    @property
+    def is_playlist(self) -> bool:
+        return self.source_type == "playlist"
 
 
 class AdminConfig(BaseModel):

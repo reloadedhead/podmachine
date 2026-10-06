@@ -31,18 +31,23 @@ def unique_slug(conn: sqlite3.Connection, base_slug: str) -> str:
 def _row_to_channel(row: sqlite3.Row) -> ChannelConfig:
     retention = RetentionConfig(**json.loads(row["retention_json"])) if row["retention_json"] else None
     return ChannelConfig(
-        id=row["id"], name=row["name"], slug=row["slug"], category=row["category"], retention=retention
+        id=row["id"],
+        name=row["name"],
+        slug=row["slug"],
+        category=row["category"],
+        retention=retention,
+        source_type=row["source_type"],
     )
 
 
 def list_channels(conn: sqlite3.Connection) -> list[ChannelConfig]:
-    rows = conn.execute("SELECT slug, id, name, category, retention_json FROM channels ORDER BY name").fetchall()
+    rows = conn.execute("SELECT slug, id, name, category, retention_json, source_type FROM channels ORDER BY name").fetchall()
     return [_row_to_channel(row) for row in rows]
 
 
 def get_channel(conn: sqlite3.Connection, slug: str) -> ChannelConfig | None:
     row = conn.execute(
-        "SELECT slug, id, name, category, retention_json FROM channels WHERE slug = ?", (slug,)
+        "SELECT slug, id, name, category, retention_json, source_type FROM channels WHERE slug = ?", (slug,)
     ).fetchone()
     return _row_to_channel(row) if row else None
 
@@ -54,13 +59,14 @@ def add_channel(conn: sqlite3.Connection, channel: ChannelConfig) -> None:
     if existing:
         raise DuplicateChannelError(f"A channel with id {channel.id!r} or slug {channel.slug!r} already exists")
     conn.execute(
-        "INSERT INTO channels (slug, id, name, category, retention_json) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO channels (slug, id, name, category, retention_json, source_type) VALUES (?, ?, ?, ?, ?, ?)",
         (
             channel.slug,
             channel.id,
             channel.name,
             channel.category,
             channel.retention.model_dump_json() if channel.retention else None,
+            channel.source_type,
         ),
     )
     conn.commit()
@@ -94,13 +100,14 @@ def import_channels_from_config_if_empty(conn: sqlite3.Connection, channels: lis
         return
     for channel in channels:
         conn.execute(
-            "INSERT INTO channels (slug, id, name, category, retention_json) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO channels (slug, id, name, category, retention_json, source_type) VALUES (?, ?, ?, ?, ?, ?)",
             (
                 channel.slug,
                 channel.id,
                 channel.name,
                 channel.category,
                 channel.retention.model_dump_json() if channel.retention else None,
+                channel.source_type,
             ),
         )
     conn.commit()

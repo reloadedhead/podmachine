@@ -1,4 +1,20 @@
 <div id="video-table" class="card table-card" hx-get="/admin/partials/channels/{{ channel.slug }}/videos" hx-trigger="every 15s" hx-swap="outerHTML">
+  {% if not baseline_established %}
+  {% set live = sync.channels.get(channel.slug) %}
+  {% set kind = 'playlist' if channel.is_playlist else 'channel' %}
+  <div class="baseline-notice" role="status">
+    <span class="spinner" aria-hidden="true"></span>
+    <div>
+      {% if live and live.state == 'checking' %}
+      <p class="baseline-notice-title">Establishing baseline…</p>
+      <p class="baseline-notice-body">Listing this {{ kind }}'s existing videos. They'll be recorded as <em>baseline</em> and won't download; only videos added after this will.</p>
+      {% else %}
+      <p class="baseline-notice-title">Waiting to establish baseline</p>
+      <p class="baseline-notice-body">This {{ kind }}'s existing videos get listed on the next sync, without downloading them. Use <strong>Sync now</strong> on the <a href="/admin/">Channels</a> page to start right away.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
   <table>
     <colgroup>
       <col style="width: 32%">

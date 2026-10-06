@@ -136,6 +136,10 @@ h1 {
 }
 
 .channel-cell { display: flex; align-items: center; }
+/* Name and kind badge flow as inline text, so a long name wraps at word
+   boundaries instead of being squeezed beside the badge. */
+.channel-name { min-width: 0; overflow-wrap: normal; }
+.badge-kind { vertical-align: 1px; }
 
 h2 {
   font-size: 1rem;
@@ -368,6 +372,28 @@ button:disabled, .btn:disabled { opacity: 0.5; cursor: default; }
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
 }
 .badge-muted { color: var(--text-muted); background: var(--bg); }
+.badge.badge-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  /* Wrap rather than spill into the next column on mid-width screens. */
+  max-width: 100%;
+  white-space: normal;
+}
+
+.baseline-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.9rem 1.25rem;
+  color: var(--warn);
+  background: var(--warn-bg);
+  border-bottom: 1px solid var(--border);
+}
+.baseline-notice .spinner { margin-top: 0.2rem; }
+.baseline-notice p { margin: 0; }
+.baseline-notice-title { font-weight: 600; font-size: 0.9rem; }
+.baseline-notice-body { font-size: 0.85rem; color: var(--text); opacity: 0.85; margin-top: 0.15rem !important; }
 
 /* Tables */
 table { width: 100%; border-collapse: collapse; table-layout: fixed; }

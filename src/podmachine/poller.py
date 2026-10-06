@@ -10,7 +10,7 @@ from typing import Callable
 
 from podmachine.config import ChannelConfig
 from podmachine.db import utcnow_iso
-from podmachine.youtube import VideoEntry, fetch_channel_feed
+from podmachine.youtube import VideoEntry, fetch_channel_feed, fetch_playlist_entries
 
 logger = logging.getLogger("podmachine.poller")
 
@@ -48,6 +48,7 @@ def poll_channel(
     conn: sqlite3.Connection,
     channel: ChannelConfig,
     fetch: FetchFn = fetch_channel_feed,
+    fetch_playlist: FetchFn = fetch_playlist_entries,
 ) -> PollResult:
     row = conn.execute(
         "SELECT baseline_established, backed_off_until FROM channel_state WHERE slug = ?",
@@ -66,7 +67,7 @@ def poll_channel(
         _reset_poll_failure_state(conn, channel)
 
     try:
-        entries = fetch(channel.id)
+        entries = (fetch_playlist if channel.is_playlist else fetch)(channel.id)
     except Exception as exc:
         logger.exception("Failed to poll channel %s", channel.slug)
         _record_poll_failure(conn, channel, str(exc))
@@ -103,7 +104,8 @@ def poll_channel(
     for entry in entries:
         if entry.video_id in known_ids:
             continue
-        if entry.is_short:
+        # A playlist is a curated selection, so Shorts in it are wanted.
+        if entry.is_short and not channel.is_playlist:
             _insert_video(conn, channel.slug, entry, status="skipped_short", now=now)
             new_skipped_shorts += 1
         else:
@@ -125,12 +127,13 @@ def poll_all_channels(
     fetch: FetchFn = fetch_channel_feed,
     sleep_fn: SleepFn = time.sleep,
     progress: PollProgressFn | None = None,
+    fetch_playlist: FetchFn = fetch_playlist_entries,
 ) -> list[PollResult]:
     results = []
     for i, channel in enumerate(channels):
         if progress:
             progress(channel, i, len(channels), None)
-        result = poll_channel(conn, channel, fetch=fetch)
+        result = poll_channel(conn, channel, fetch=fetch, fetch_playlist=fetch_playlist)
         results.append(result)
         if progress:
             progress(channel, i, len(channels), result)

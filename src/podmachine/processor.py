@@ -5,8 +5,9 @@ import random
 import sqlite3
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from podmachine.db import utcnow_iso
 from podmachine.downloader import DownloadResult, download_audio
@@ -120,12 +121,15 @@ def _process_one(
         return ProcessResult(video_id, channel_slug, False, result.error)
 
     info = result.info or {}
+    # Playlist sources are discovered without an upload date (see
+    # youtube.parse_playlist_entries); the download's metadata has the real one.
+    published_at = _info_published_at(info) or row["published_at"]
     try:
         tag_fn(
             result.file_path,
             title=row["title"],
             channel_name=channel_names.get(channel_slug, channel_slug),
-            published_at=row["published_at"],
+            published_at=published_at,
             description=info.get("description") or "",
             thumbnail_url=info.get("thumbnail"),
         )
@@ -141,7 +145,7 @@ def _process_one(
     conn.execute(
         "UPDATE videos SET status = 'done', file_path = ?, file_size = ?, "
         "downloaded_at = ?, last_attempt_at = ?, error_message = NULL, description = ?, "
-        "thumbnail_url = ?, duration_seconds = ? WHERE video_id = ?",
+        "thumbnail_url = ?, duration_seconds = ?, published_at = ? WHERE video_id = ?",
         (
             str(result.file_path),
             file_size,
@@ -150,11 +154,21 @@ def _process_one(
             info.get("description") or None,
             info.get("thumbnail"),
             info.get("duration"),
+            published_at,
             video_id,
         ),
     )
     conn.commit()
     return ProcessResult(video_id, channel_slug, True)
+
+
+def _info_published_at(info: dict[str, Any]) -> str | None:
+    # Only the precise `timestamp` — `upload_date` is day-granular and would
+    # be less accurate than the RSS feed's published time for channel sources.
+    timestamp = info.get("timestamp") or info.get("release_timestamp")
+    if not timestamp:
+        return None
+    return datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
 
 
 def retry_video(conn: sqlite3.Connection, video_id: str) -> None:

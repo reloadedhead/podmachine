@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from feedgen.feed import FeedGenerator
 
 from podmachine.config import ChannelConfig
+from podmachine.youtube import playlist_url
 
 logger = logging.getLogger("podmachine.feed")
 
@@ -37,8 +38,12 @@ def build_channel_feed(conn: sqlite3.Connection, channel: ChannelConfig, base_ur
     fg.load_extension("podcast")
     fg.title(channel.name)
     fg.link(href=f"{base_url}/feeds/{channel.slug}.xml", rel="self")
-    fg.link(href=f"https://www.youtube.com/channel/{channel.id}", rel="alternate")
-    fg.description(f"Audio episodes from the {channel.name} YouTube channel.")
+    if channel.is_playlist:
+        fg.link(href=playlist_url(channel.id), rel="alternate")
+        fg.description(f"Audio episodes from the {channel.name} YouTube playlist.")
+    else:
+        fg.link(href=f"https://www.youtube.com/channel/{channel.id}", rel="alternate")
+        fg.description(f"Audio episodes from the {channel.name} YouTube channel.")
     fg.language("en")
     fg.podcast.itunes_author(channel.name)
     fg.podcast.itunes_category(channel.category)

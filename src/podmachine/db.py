@@ -78,6 +78,9 @@ CHANNEL_COLUMNS = {
         "TEXT NOT NULL DEFAULT 'Society & Culture' "
         f"CHECK (category IN ({_CATEGORY_ENUM_SQL}))"
     ),
+    # 'channel': `id` is a UC… channel ID polled via RSS. 'playlist': `id` is
+    # a playlist ID polled via yt-dlp (see youtube.fetch_playlist_entries).
+    "source_type": "TEXT NOT NULL DEFAULT 'channel' CHECK (source_type IN ('channel', 'playlist'))",
 }
 
 

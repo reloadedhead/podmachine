@@ -4,6 +4,7 @@ import sqlite3
 from pathlib import Path
 
 import requests
+import yt_dlp
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -23,11 +24,11 @@ from podmachine.channels import (
 from podmachine.config import ChannelConfig, ITUNES_CATEGORIES, RetentionConfig
 from podmachine.db import connect
 from podmachine.processor import process_pending_videos, retry_video
-from podmachine.queries import channel_status_rows, channel_videos
+from podmachine.queries import baseline_established, channel_status_rows, channel_videos
 from podmachine.retention import delete_episode
 from podmachine.settings import get_default_retention, set_default_retention
 from podmachine.web.auth import require_admin
-from podmachine.youtube import fetch_channel_name
+from podmachine.youtube import fetch_channel_name, fetch_playlist_name, parse_source
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 
@@ -117,6 +118,7 @@ def channel_detail(request: Request, slug: str) -> HTMLResponse:
     try:
         channel = _find_channel(conn, slug)
         videos = channel_videos(conn, slug)
+        baseline = baseline_established(conn, slug)
         default_retention = get_default_retention(conn)
     finally:
         conn.close()
@@ -127,6 +129,7 @@ def channel_detail(request: Request, slug: str) -> HTMLResponse:
         {
             "channel": channel,
             "videos": videos,
+            "baseline_established": baseline,
             "default_retention": default_retention,
             "categories": ITUNES_CATEGORIES,
             "feed_url": feed_url,
@@ -141,9 +144,14 @@ def channel_videos_partial(request: Request, slug: str) -> HTMLResponse:
     try:
         channel = _find_channel(conn, slug)
         videos = channel_videos(conn, slug)
+        baseline = baseline_established(conn, slug)
     finally:
         conn.close()
-    return templates.TemplateResponse(request, "partials/video_table.html", {"channel": channel, "videos": videos})
+    return templates.TemplateResponse(
+        request,
+        "partials/video_table.html",
+        {"channel": channel, "videos": videos, "baseline_established": baseline},
+    )
 
 
 @router.post("/channels", response_class=HTMLResponse)
@@ -158,21 +166,32 @@ def action_add_channel(
     try:
         error = None
         try:
+            source_type, youtube_id = parse_source(channel_id)
             resolved_name = name.strip()
             if not resolved_name:
                 try:
-                    resolved_name = fetch_channel_name(channel_id)
-                except requests.RequestException:
+                    if source_type == "playlist":
+                        resolved_name = fetch_playlist_name(youtube_id)
+                    else:
+                        resolved_name = fetch_channel_name(youtube_id)
+                except (requests.RequestException, yt_dlp.utils.DownloadError):
                     resolved_name = None
                 if not resolved_name:
                     raise ValueError(
-                        f"Couldn't fetch a channel name for {channel_id!r} — enter one manually"
+                        f"Couldn't fetch a {source_type} name for {youtube_id!r} — enter one manually"
                     )
 
             resolved_slug = slug.strip() or unique_slug(conn, slugify(resolved_name))
 
             add_channel(
-                conn, ChannelConfig(id=channel_id, name=resolved_name, slug=resolved_slug, category=category)
+                conn,
+                ChannelConfig(
+                    id=youtube_id,
+                    name=resolved_name,
+                    slug=resolved_slug,
+                    category=category,
+                    source_type=source_type,
+                ),
             )
         except (DuplicateChannelError, ValidationError, ValueError) as exc:
             error = str(exc)
@@ -280,9 +299,14 @@ def action_delete_video(request: Request, slug: str, video_id: str) -> HTMLRespo
         row = _find_video(conn, slug, video_id)
         delete_episode(conn, video_id, row["file_path"])
         videos = channel_videos(conn, slug)
+        baseline = baseline_established(conn, slug)
     finally:
         conn.close()
-    return templates.TemplateResponse(request, "partials/video_table.html", {"channel": channel, "videos": videos})
+    return templates.TemplateResponse(
+        request,
+        "partials/video_table.html",
+        {"channel": channel, "videos": videos, "baseline_established": baseline},
+    )
 
 
 def _process_pending_now(conn: sqlite3.Connection, config) -> None:
@@ -304,9 +328,14 @@ def action_retry_video(request: Request, slug: str, video_id: str) -> HTMLRespon
         retry_video(conn, video_id)
         _process_pending_now(conn, request.app.state.config)
         videos = channel_videos(conn, slug)
+        baseline = baseline_established(conn, slug)
     finally:
         conn.close()
-    return templates.TemplateResponse(request, "partials/video_table.html", {"channel": channel, "videos": videos})
+    return templates.TemplateResponse(
+        request,
+        "partials/video_table.html",
+        {"channel": channel, "videos": videos, "baseline_established": baseline},
+    )
 
 
 @router.post("/channels/{slug}/videos/{video_id}/queue", response_class=HTMLResponse)
@@ -320,9 +349,14 @@ def action_queue_video(request: Request, slug: str, video_id: str) -> HTMLRespon
         retry_video(conn, video_id)
         _process_pending_now(conn, request.app.state.config)
         videos = channel_videos(conn, slug)
+        baseline = baseline_established(conn, slug)
     finally:
         conn.close()
-    return templates.TemplateResponse(request, "partials/video_table.html", {"channel": channel, "videos": videos})
+    return templates.TemplateResponse(
+        request,
+        "partials/video_table.html",
+        {"channel": channel, "videos": videos, "baseline_established": baseline},
+    )
 
 
 def _sync_update(request: Request) -> HTMLResponse:

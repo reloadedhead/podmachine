@@ -3,9 +3,9 @@
   <table>
     <colgroup>
       <col style="width: 26%">
-      <col style="width: 16%">
-      <col style="width: 22%">
+      <col style="width: 24%">
       <col style="width: 20%">
+      <col style="width: 14%">
       <col style="width: 16%">
     </colgroup>
     <thead>
@@ -23,7 +23,10 @@
         <td data-label="Channel">
           <div class="channel-cell">
             {% if c.has_avatar %}<img class="avatar avatar-sm" src="/artwork/{{ c.slug }}.jpg" alt="">{% endif %}
-            <a href="/admin/channels/{{ c.slug }}">{{ c.name }}</a>
+            <span class="channel-name">
+              <a href="/admin/channels/{{ c.slug }}">{{ c.name }}</a>
+              {%- if c.is_playlist %} <span class="badge badge-muted badge-kind">playlist</span>{% endif %}
+            </span>
           </div>
         </td>
         <td data-label="Status">
@@ -42,7 +45,7 @@
           {% elif c.backed_off_until %}
             <span class="badge badge-error">backed off</span>
           {% elif not c.baseline_established %}
-            <span class="badge badge-warn">establishing baseline</span>
+            <span class="badge badge-warn badge-loading"><span class="spinner spinner-sm" aria-hidden="true"></span>establishing baseline</span>
           {% else %}
             <span class="badge badge-ok">ok</span>
           {% endif %}

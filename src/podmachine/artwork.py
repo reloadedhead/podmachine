@@ -7,7 +7,7 @@ from typing import Callable
 
 from podmachine.config import ChannelConfig
 from podmachine.tagger import fetch_thumbnail
-from podmachine.youtube import fetch_channel_avatar_url
+from podmachine.youtube import fetch_channel_avatar_url, fetch_playlist_avatar_url
 
 logger = logging.getLogger("podmachine.artwork")
 
@@ -21,6 +21,7 @@ def ensure_channel_artwork(
     artwork_dir: Path,
     avatar_url_fn: AvatarUrlFn = fetch_channel_avatar_url,
     fetch_bytes_fn: FetchBytesFn = fetch_thumbnail,
+    playlist_avatar_url_fn: AvatarUrlFn = fetch_playlist_avatar_url,
 ) -> None:
     row = conn.execute("SELECT avatar_path FROM channel_state WHERE slug = ?", (channel.slug,)).fetchone()
     existing_path = row["avatar_path"] if row else None
@@ -28,7 +29,7 @@ def ensure_channel_artwork(
         return
 
     try:
-        avatar_url = avatar_url_fn(channel.id)
+        avatar_url = (playlist_avatar_url_fn if channel.is_playlist else avatar_url_fn)(channel.id)
         if not avatar_url:
             logger.info("No avatar found for channel %s", channel.slug)
             return
