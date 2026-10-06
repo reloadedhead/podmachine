@@ -214,10 +214,11 @@ def action_delete_channel(request: Request, slug: str) -> HTMLResponse:
     return templates.TemplateResponse(request, "partials/channel_table.html", {"channels": channels, "error": None})
 
 
-@router.post("/channels/{slug}/retention", response_class=HTMLResponse)
-def action_update_retention(
+@router.post("/channels/{slug}/settings", response_class=HTMLResponse)
+def action_update_channel_settings(
     request: Request,
     slug: str,
+    category: str = Form(...),
     strategy: str = Form(""),
     keep_latest: str = Form(""),
 ) -> HTMLResponse:
@@ -225,39 +226,21 @@ def action_update_retention(
     try:
         channel = _find_channel(conn, slug)
         error = None
+        # Validate everything before writing anything, so a bad value in one
+        # field can't leave the other half-applied.
         try:
-            if not strategy:
-                retention = None
-            else:
-                retention = RetentionConfig(
-                    strategy=strategy, keep_latest=int(keep_latest) if keep_latest else None
-                )
-            update_channel_retention(conn, slug, retention)
-            channel = _find_channel(conn, slug)
-        except ValidationError as exc:
+            if category not in ITUNES_CATEGORIES:
+                raise ValueError(f"{category!r} is not a valid Apple Podcasts category")
+            retention = (
+                RetentionConfig(strategy=strategy, keep_latest=int(keep_latest) if keep_latest else None)
+                if strategy
+                else None
+            )
+        except (ValidationError, ValueError) as exc:
             error = str(exc)
-        default_retention = get_default_retention(conn)
-    finally:
-        conn.close()
-    status_code = 400 if error else 200
-    return templates.TemplateResponse(
-        request,
-        "partials/channel_meta.html",
-        {"channel": channel, "default_retention": default_retention, "categories": ITUNES_CATEGORIES, "error": error},
-        status_code=status_code,
-    )
-
-
-@router.post("/channels/{slug}/category", response_class=HTMLResponse)
-def action_update_category(request: Request, slug: str, category: str = Form(...)) -> HTMLResponse:
-    conn = connect(request.app.state.db_path)
-    try:
-        channel = _find_channel(conn, slug)
-        error = None
-        if category not in ITUNES_CATEGORIES:
-            error = f"{category!r} is not a valid Apple Podcasts category"
         else:
             update_channel_category(conn, slug, category)
+            update_channel_retention(conn, slug, retention)
             channel = _find_channel(conn, slug)
         default_retention = get_default_retention(conn)
     finally:

@@ -375,30 +375,39 @@ def test_action_delete_channel_unknown_slug_404s(client):
     assert response.status_code == 404
 
 
-def test_action_update_retention(client):
+def test_channel_detail_shows_settings_form(client):
+    response = client.get("/admin/channels/example-channel", auth=("admin", "secret123"))
+    assert response.status_code == 200
+    assert 'id="channel-meta"' in response.text
+    assert 'hx-post="/admin/channels/example-channel/settings"' in response.text
+    assert "Save settings" in response.text
+
+
+def test_action_update_settings_saves_category_and_retention(client):
     response = client.post(
-        "/admin/channels/example-channel/retention",
-        data={"strategy": "count", "keep_latest": "3"},
+        "/admin/channels/example-channel/settings",
+        data={"category": "True Crime", "strategy": "count", "keep_latest": "3"},
         auth=("admin", "secret123"),
     )
     assert response.status_code == 200
     assert 'id="channel-meta"' in response.text
 
     conn = connect(client.app.state.db_path)
-    row = conn.execute("SELECT retention_json FROM channels WHERE slug = 'example-channel'").fetchone()
+    row = conn.execute("SELECT category, retention_json FROM channels WHERE slug = 'example-channel'").fetchone()
     conn.close()
+    assert row["category"] == "True Crime"
     assert '"strategy":"count"' in row["retention_json"]
 
 
-def test_action_update_retention_clears_with_blank_strategy(client):
+def test_action_update_settings_clears_retention_with_blank_strategy(client):
     client.post(
-        "/admin/channels/example-channel/retention",
-        data={"strategy": "count", "keep_latest": "3"},
+        "/admin/channels/example-channel/settings",
+        data={"category": "Comedy", "strategy": "count", "keep_latest": "3"},
         auth=("admin", "secret123"),
     )
     response = client.post(
-        "/admin/channels/example-channel/retention",
-        data={"strategy": "", "keep_latest": ""},
+        "/admin/channels/example-channel/settings",
+        data={"category": "Comedy", "strategy": "", "keep_latest": ""},
         auth=("admin", "secret123"),
     )
     assert response.status_code == 200
@@ -409,25 +418,25 @@ def test_action_update_retention_clears_with_blank_strategy(client):
     assert row["retention_json"] is None
 
 
-def test_action_update_category(client):
+def test_action_update_settings_rejects_invalid_category_without_saving_anything(client):
     response = client.post(
-        "/admin/channels/example-channel/category",
-        data={"category": "True Crime"},
+        "/admin/channels/example-channel/settings",
+        data={"category": "Not Real", "strategy": "count", "keep_latest": "3"},
         auth=("admin", "secret123"),
     )
-    assert response.status_code == 200
-    assert 'id="channel-meta"' in response.text
+    assert response.status_code == 400
 
     conn = connect(client.app.state.db_path)
-    row = conn.execute("SELECT category FROM channels WHERE slug = 'example-channel'").fetchone()
+    row = conn.execute("SELECT category, retention_json FROM channels WHERE slug = 'example-channel'").fetchone()
     conn.close()
-    assert row["category"] == "True Crime"
+    assert row["category"] == "Comedy"  # unchanged
+    assert row["retention_json"] is None  # the valid half wasn't applied either
 
 
-def test_action_update_category_rejects_invalid_value(client):
+def test_action_update_settings_rejects_invalid_retention_without_saving_anything(client):
     response = client.post(
-        "/admin/channels/example-channel/category",
-        data={"category": "Not Real"},
+        "/admin/channels/example-channel/settings",
+        data={"category": "True Crime", "strategy": "count", "keep_latest": ""},
         auth=("admin", "secret123"),
     )
     assert response.status_code == 400
@@ -438,9 +447,9 @@ def test_action_update_category_rejects_invalid_value(client):
     assert row["category"] == "Comedy"  # unchanged
 
 
-def test_action_update_category_unknown_slug_404s(client):
+def test_action_update_settings_unknown_slug_404s(client):
     response = client.post(
-        "/admin/channels/does-not-exist/category",
+        "/admin/channels/does-not-exist/settings",
         data={"category": "Comedy"},
         auth=("admin", "secret123"),
     )
