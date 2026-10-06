@@ -36,7 +36,21 @@ def _sync_context(request: Request) -> dict:
     return {"sync": request.app.state.sync.snapshot()}
 
 
+STATIC_DIR = Path(__file__).parent / "static"
+
+
+def static_url(name: str) -> str:
+    # Version by mtime so browsers refetch after an upgrade instead of pairing
+    # new HTML with a heuristically-cached old stylesheet.
+    try:
+        version = int((STATIC_DIR / name).stat().st_mtime)
+    except OSError:
+        return f"/static/{name}"
+    return f"/static/{name}?v={version}"
+
+
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates", context_processors=[_sync_context])
+templates.env.globals["static_url"] = static_url
 
 
 def _find_channel(conn: sqlite3.Connection, slug: str) -> ChannelConfig:

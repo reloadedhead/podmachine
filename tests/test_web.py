@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from unittest.mock import MagicMock
 
 import podmachine.config
@@ -157,9 +158,17 @@ def test_static_htmx_served_without_auth(client):
 def test_favicon_linked_and_served_without_auth(client):
     page = client.get("/admin/", auth=("admin", "secret123"))
     for href in ("/static/favicon.svg", "/static/favicon-32.png", "/static/apple-touch-icon.png"):
-        assert f'href="{href}"' in page.text
+        assert f'href="{href}?v=' in page.text
         # Browsers fetch icons without the Basic-auth credentials.
         assert client.get(href).status_code == 200
+
+
+def test_static_assets_linked_with_version_query(client):
+    page = client.get("/admin/", auth=("admin", "secret123"))
+    assert re.search(r'href="/static/admin\.css\?v=\d+"', page.text)
+    assert re.search(r'src="/static/htmx\.min\.js\?v=\d+"', page.text)
+    # The query string must not break serving.
+    assert client.get("/static/admin.css?v=123").status_code == 200
 
 
 def test_json_channels_endpoint_still_unauthenticated(client):
