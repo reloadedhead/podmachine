@@ -643,7 +643,13 @@ code {
   .retention-form input, .retention-form select { width: 100%; }
   .retention-form button { width: 100%; }
 
-  .profile-head { padding: 1.1rem; }
+  /* Flatten .profile-id so the avatar and title share a row and the chips
+     get the full card width below it. */
+  .profile-head { padding: 1.1rem; gap: 0.85rem; }
+  .profile-head .avatar-xl { width: 2.75rem; height: 2.75rem; }
+  .profile-id { display: contents; }
+  .profile-id h1 { flex: 1 1 0; min-width: 0; font-size: 1.4rem; }
+  .chips { flex: 1 0 100%; margin: 0; }
   .btn-copy { width: 100%; }
   .settings-form { padding: 0; }
   .settings-grid { padding: 1.1rem; }
